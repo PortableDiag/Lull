@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lull</string>
+
+    <string name="permission_title">Let Lull find your audio</string>
+    <string name="permission_body">Lull needs access to the audio files on your device so it can list and play them. Nothing leaves your phone.</string>
+    <string name="grant_access">Grant access</string>
+    <string name="no_audio">No audio found on this device.</string>
+    <string name="refresh">Refresh</string>
+    <string name="search">Search</string>
+    <string name="search_hint">Search title or artist</string>
+    <string name="no_results">No tracks match your search.</string>
+    <string name="theme">Theme</string>
+    <string name="theme_system">Follow system</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+
+    <string name="now_playing">Now playing</string>
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
+    <string name="next">Next</string>
+    <string name="previous">Previous</string>
+    <string name="back">Back</string>
+    <string name="unknown_artist">Unknown artist</string>
+
+    <string name="repeat_off">No repeat</string>
+    <string name="repeat_one">Repeat one</string>
+    <string name="repeat_all">Repeat all</string>
+    <string name="repeat_off_msg">Repeat off</string>
+    <string name="repeat_one_msg">Repeat one — skip now restarts the track</string>
+    <string name="repeat_all_msg">Repeat all</string>
+    <string name="shuffle">Shuffle</string>
+    <string name="shuffle_on">Shuffle on</string>
+    <string name="shuffle_off">Shuffle off</string>
+
+    <string name="volume">Volume</string>
+    <string name="volume_style">Volume control</string>
+    <string name="volume_bar">Bar</string>
+    <string name="volume_knob">Knob</string>
+    <string name="switch_volume_style">Switch volume style</string>
+</resources>

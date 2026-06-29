@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@android:color/transparent"
+        app:elevation="0dp">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:title="@string/app_name"
+            app:titleTextAppearance="@style/TextAppearance.Material3.HeadlineSmall" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:paddingBottom="96dp"
+        app:fastScrollEnabled="true"
+        app:fastScrollHorizontalThumbDrawable="@drawable/fastscroll_thumb"
+        app:fastScrollHorizontalTrackDrawable="@drawable/fastscroll_track"
+        app:fastScrollVerticalThumbDrawable="@drawable/fastscroll_thumb"
+        app:fastScrollVerticalTrackDrawable="@drawable/fastscroll_track"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+
+    <LinearLayout
+        android:id="@+id/emptyView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="32dp"
+        android:visibility="gone"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <ImageView
+            android:layout_width="64dp" android:layout_height="64dp"
+            android:src="@drawable/ic_music_note" android:alpha="0.4"
+            app:tint="?attr/colorOnSurfaceVariant" />
+        <TextView
+            android:id="@+id/emptyText"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="16dp" android:text="@string/no_audio"
+            android:textColor="?attr/colorOnSurfaceVariant" android:textSize="15sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/permissionView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="32dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="72dp" android:layout_height="72dp"
+            android:src="@drawable/ic_music_note" app:tint="?attr/colorPrimary" />
+        <TextView
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="20dp" android:text="@string/permission_title"
+            android:textColor="?attr/colorOnSurface" android:textSize="20sp"
+            android:fontFamily="sans-serif-medium" android:gravity="center" />
+        <TextView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp" android:text="@string/permission_body"
+            android:textColor="?attr/colorOnSurfaceVariant" android:textSize="14sp"
+            android:gravity="center" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/grantButton"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="24dp" android:paddingHorizontal="28dp"
+            android:text="@string/grant_access" app:cornerRadius="24dp" />
+    </LinearLayout>
+
+    <!-- Mini player -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/miniPlayer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_margin="10dp"
+        android:visibility="gone"
+        app:cardCornerRadius="18dp"
+        app:cardElevation="6dp"
+        app:cardBackgroundColor="?attr/colorSurfaceVariant">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="?attr/selectableItemBackground"
+            android:padding="8dp">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="48dp" android:layout_height="48dp"
+                app:cardCornerRadius="10dp" app:cardElevation="0dp">
+                <ImageView
+                    android:id="@+id/miniArt"
+                    android:layout_width="match_parent" android:layout_height="match_parent"
+                    android:scaleType="centerCrop" android:src="@drawable/bg_art_placeholder"
+                    android:contentDescription="@string/now_playing" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <LinearLayout
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:layout_marginHorizontal="12dp"
+                android:orientation="vertical">
+                <TextView
+                    android:id="@+id/miniTitle"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:maxLines="1" android:ellipsize="end"
+                    android:textColor="?attr/colorOnSurface" android:textSize="14sp"
+                    android:fontFamily="sans-serif-medium" android:text="" />
+                <TextView
+                    android:id="@+id/miniArtist"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:maxLines="1" android:ellipsize="end"
+                    android:textColor="?attr/colorOnSurfaceVariant" android:textSize="12sp"
+                    android:text="" />
+            </LinearLayout>
+
+            <ImageButton
+                android:id="@+id/miniPlayPause"
+                android:layout_width="44dp" android:layout_height="44dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_play" app:tint="?attr/colorOnSurface"
+                android:contentDescription="@string/play" />
+
+            <ImageButton
+                android:id="@+id/miniNext"
+                android:layout_width="44dp" android:layout_height="44dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_skip_next" app:tint="?attr/colorOnSurface"
+                android:contentDescription="@string/next" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

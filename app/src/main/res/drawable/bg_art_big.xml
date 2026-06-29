@@ -1,0 +1,4 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+  <item android:drawable="?attr/colorSurfaceVariant"/>
+  <item android:width="120dp" android:height="120dp" android:gravity="center" android:drawable="@drawable/ic_note_placeholder"/>
+</layer-list>
