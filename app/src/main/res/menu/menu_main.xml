@@ -12,4 +12,9 @@
         android:icon="@drawable/ic_theme"
         android:title="@string/theme"
         app:showAsAction="ifRoom" />
+    <item
+        android:id="@+id/action_mix_audio"
+        android:title="@string/mix_audio"
+        android:checkable="true"
+        app:showAsAction="never" />
 </menu>

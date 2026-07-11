@@ -9,6 +9,9 @@ object Prefs {
     private const val KEY_SHUFFLE = "shuffle"
     private const val KEY_VOL_STYLE = "volume_style"
 
+    /** Public so [PlaybackService]'s preference listener can react only to this key. */
+    const val KEY_MIX_AUDIO = "mix_audio"
+
     const val VOL_BAR = 0
     const val VOL_KNOB = 1
 
@@ -32,4 +35,14 @@ object Prefs {
 
     fun setVolumeStyle(context: Context, style: Int) =
         sp(context).edit().putInt(KEY_VOL_STYLE, style).apply()
+
+    /**
+     * When true, playback mixes with other apps' audio instead of requesting audio focus
+     * (so a browser/Telegram video keeps playing over our music). Defaults to true.
+     */
+    fun mixAudio(context: Context): Boolean =
+        sp(context).getBoolean(KEY_MIX_AUDIO, true)
+
+    fun setMixAudio(context: Context, on: Boolean) =
+        sp(context).edit().putBoolean(KEY_MIX_AUDIO, on).apply()
 }

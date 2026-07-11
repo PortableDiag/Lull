@@ -10,6 +10,7 @@
     <string name="search">Search</string>
     <string name="search_hint">Search title or artist</string>
     <string name="no_results">No tracks match your search.</string>
+    <string name="mix_audio">Mix with other audio</string>
     <string name="theme">Theme</string>
     <string name="theme_system">Follow system</string>
     <string name="theme_light">Light</string>

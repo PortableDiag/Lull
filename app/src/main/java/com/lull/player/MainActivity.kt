@@ -125,12 +125,21 @@ class MainActivity : AppCompatActivity() {
             override fun onQueryTextSubmit(text: String?): Boolean = true
             override fun onQueryTextChange(text: String?): Boolean { applyFilter(text ?: ""); return true }
         })
+        menu.findItem(R.id.action_mix_audio).isChecked = Prefs.mixAudio(this)
         return true
     }
 
     override fun onOptionsItemSelected(item: android.view.MenuItem): Boolean {
-        return if (item.itemId == R.id.action_theme) { showThemeDialog(); true }
-        else super.onOptionsItemSelected(item)
+        return when (item.itemId) {
+            R.id.action_theme -> { showThemeDialog(); true }
+            R.id.action_mix_audio -> {
+                val on = !item.isChecked
+                item.isChecked = on
+                Prefs.setMixAudio(this, on)
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
     }
 
     private fun applyFilter(text: String) {
