@@ -1,7 +1,8 @@
 # Changelog
 
 ## 1.4 — 2026-07-12
-- **Trim silence** (off by default): shortens long stretches of near-silence as they play — dead air inside a track, and the padding at its head and tail. Runs in ExoPlayer's audio sink, below the track transition, so unlike crossfade it does not displace gapless playback; the two compose.
+- **Trim silence** (off by default, in the overflow menu): shortens long stretches of near-silence as they play — dead air inside a track, and the padding at its head and tail. Runs in ExoPlayer's audio sink, below the track transition, so unlike crossfade it does not displace gapless playback; the two compose.
+- Note: with Trim silence on, the scrub bar jumps forward over a trimmed gap and a track ends before the bar reaches the end. The position is reported in media time, so this is expected rather than a glitch.
 
 ## 1.3 — 2026-07-11
 - **A-B loop**: mark two points in a track and loop between them; survives closing the UI.
