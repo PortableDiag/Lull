@@ -13,6 +13,10 @@
         android:title="@string/theme"
         app:showAsAction="ifRoom" />
     <item
+        android:id="@+id/action_crossfade"
+        android:title="@string/crossfade"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/action_mix_audio"
         android:title="@string/mix_audio"
         android:checkable="true"

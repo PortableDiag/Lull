@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.provider.MediaStore
 import android.view.Menu
 import android.view.View
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
@@ -27,6 +28,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.common.util.concurrent.ListenableFuture
 import com.lull.player.databinding.ActivityMainBinding
+import com.lull.player.databinding.DialogCrossfadeBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -132,6 +134,7 @@ class MainActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: android.view.MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_theme -> { showThemeDialog(); true }
+            R.id.action_crossfade -> { showCrossfadeDialog(); true }
             R.id.action_mix_audio -> {
                 val on = !item.isChecked
                 item.isChecked = on
@@ -181,6 +184,34 @@ class MainActivity : AppCompatActivity() {
             .setTitle(R.string.theme)
             .setSingleChoiceItems(options, current) { d, which ->
                 d.dismiss(); if (which != current) ThemeManager.setMode(this, which)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showCrossfadeDialog() {
+        val view = DialogCrossfadeBinding.inflate(layoutInflater)
+        val label = { seconds: Int ->
+            if (seconds == 0) getString(R.string.crossfade_off)
+            else getString(R.string.crossfade_seconds, seconds)
+        }
+
+        view.crossfadeSlider.valueTo = Prefs.MAX_CROSSFADE_SEC.toFloat()
+        view.crossfadeSlider.value = Prefs.crossfadeSec(this).toFloat()
+        view.crossfadeValue.text = label(Prefs.crossfadeSec(this))
+        view.crossfadeSlider.addOnChangeListener { _, value, _ ->
+            view.crossfadeValue.text = label(value.toInt())
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.crossfade)
+            .setView(view.root)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val seconds = view.crossfadeSlider.value.toInt()
+                Prefs.setCrossfadeSec(this, seconds)
+                Toast.makeText(
+                    this, getString(R.string.crossfade_set, label(seconds)), Toast.LENGTH_SHORT
+                ).show()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
