@@ -17,6 +17,11 @@
         android:title="@string/crossfade"
         app:showAsAction="never" />
     <item
+        android:id="@+id/action_skip_silence"
+        android:title="@string/skip_silence"
+        android:checkable="true"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/action_mix_audio"
         android:title="@string/mix_audio"
         android:checkable="true"

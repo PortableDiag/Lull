@@ -31,6 +31,9 @@ import kotlin.math.sin
  * With crossfade set to 0 (the default) the second engine is never started and playback follows
  * exactly the same path it did before the feature existed — which is what keeps gapless intact,
  * since gapless and crossfade are mutually exclusive.
+ *
+ * Trim silence — the third transition-shaping feature — is not part of that trade-off; see
+ * [applySkipSilence].
  */
 class PlaybackService : MediaSessionService() {
 
@@ -51,10 +54,14 @@ class PlaybackService : MediaSessionService() {
     private var fadeStartedAt = 0L
     private var fadeSpanMs = 0L
 
-    // When "Mix with other audio" is toggled in settings, re-apply audio focus handling on the
-    // live player so the change takes effect without restarting playback.
+    // Settings that the MediaController can't carry (neither is part of the Player interface) are
+    // toggled through preferences and picked up here, so they take effect without restarting
+    // playback: audio focus handling for "Mix with other audio", skip-silence for "Trim silence".
     private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == Prefs.KEY_MIX_AUDIO) applyAudioFocus()
+        when (key) {
+            Prefs.KEY_MIX_AUDIO -> applyAudioFocus()
+            Prefs.KEY_SKIP_SILENCE -> applySkipSilence()
+        }
     }
 
     private val abListener: () -> Unit = { syncAbWatcher() }
@@ -65,6 +72,7 @@ class PlaybackService : MediaSessionService() {
         for (i in 0..1) {
             val exo = ExoPlayer.Builder(this)
                 .setHandleAudioBecomingNoisy(true)
+                .setSkipSilenceEnabled(Prefs.skipSilence(this))
                 .build()
             exo.addListener(engineListener(i))
             engines[i] = exo
@@ -104,7 +112,9 @@ class PlaybackService : MediaSessionService() {
             new: Player.PositionInfo,
             reason: Int
         ) {
-            // A seek or a manual skip means the user overrode the transition we were mid-way through.
+            // A seek or a manual skip means the user overrode the transition we were mid-way
+            // through. Only a real seek: trimming a silence also jumps the position, but it
+            // reports DISCONTINUITY_REASON_SILENCE_SKIP and is nobody's decision to abort a fade.
             if (index == activeIndex && crossfading && reason == Player.DISCONTINUITY_REASON_SEEK) {
                 abortCrossfade()
             }
@@ -261,6 +271,23 @@ class PlaybackService : MediaSessionService() {
     private fun applyAudioFocus() {
         active?.setAudioAttributes(MUSIC_ATTRIBUTES, /* handleAudioFocus = */ !Prefs.mixAudio(this))
         standby?.setAudioAttributes(MUSIC_ATTRIBUTES, /* handleAudioFocus = */ false)
+    }
+
+    // ---------------- Trim silence ----------------
+
+    /**
+     * Silence trimming lives in ExoPlayer's audio sink, which shortens runs of near-silent PCM as
+     * they are played out. That placement is what makes it a third, independent feature rather
+     * than a variant of the other two: it sits *below* the track transition, so it trims dead air
+     * in the middle of a track and the padding at its edges whether the tracks are joined gaplessly
+     * or crossfaded, and it needs no scan of the file up front.
+     *
+     * Applied to both engines: the standby one is inaudible right now, but it is the engine you
+     * will be listening to after the next fade.
+     */
+    private fun applySkipSilence() {
+        val on = Prefs.skipSilence(this)
+        for (engine in engines) engine?.skipSilenceEnabled = on
     }
 
     private fun prefs(): SharedPreferences =

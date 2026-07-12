@@ -40,6 +40,10 @@
     <string name="crossfade_hint">Overlaps the end of one track with the start of the next. Turning this on replaces gapless playback, and it is skipped while repeat-one or an A-B loop is active.</string>
     <string name="crossfade_set">Crossfade: %1$s</string>
 
+    <string name="skip_silence">Trim silence</string>
+    <string name="skip_silence_on">Trim silence on — long gaps are shortened</string>
+    <string name="skip_silence_off">Trim silence off</string>
+
     <string name="ab_set_a">A</string>
     <string name="ab_set_b">B</string>
     <string name="ab_set_a_desc">Set loop start</string>
