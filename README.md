@@ -46,6 +46,23 @@ No analytics, ads, or network access — Lull only reads the audio already on yo
 
 ---
 
+## Where the settings live
+
+Everything persistent is in the **overflow menu** on the library screen, and is remembered across restarts:
+
+| Menu item | Type | Default |
+|---|---|---|
+| **Theme** | Follow system / Light / Dark | Dark |
+| **Crossfade** | Slider, 0–12s (0 = off) | Off |
+| **Trim silence** | Checkbox | Off |
+| **Mix with other audio** | Checkbox | On |
+
+Repeat, shuffle and the volume bar/knob choice are set on the **Now Playing** screen; the **A-B loop** buttons are there too.
+
+None of the three playback settings can be pushed through a `MediaController`: crossfade is Lull's own concept rather than a Media3 one, and skip-silence and audio-focus handling live on `ExoPlayer` and not on the `Player` interface a controller talks to. So all three are written to `SharedPreferences` and picked up by `PlaybackService` through an `OnSharedPreferenceChangeListener`, which is what lets them take effect on the *live* player without restarting playback.
+
+---
+
 ## Screenshots
 
 _Add screenshots here (`docs/`) — library list, Now Playing with the knob, and the media notification._
@@ -109,15 +126,16 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 
 ```
 app/src/main/java/com/lull/player/
-├── MainActivity.kt        # library: MediaStore query, list, mini-player, permissions
-├── NowPlayingActivity.kt  # full controls: scrub, shuffle, repeat, volume bar/knob
-├── PlaybackService.kt     # MediaSessionService — background playback + notification
+├── MainActivity.kt        # library: MediaStore query, list, mini-player, permissions, settings menu
+├── NowPlayingActivity.kt  # full controls: scrub, A-B loop, shuffle, repeat, volume bar/knob
+├── PlaybackService.kt     # MediaSessionService — background playback, crossfade, A-B, trim silence
 ├── RepeatAwarePlayer.kt   # makes next/prev restart the track when repeat-one is on
+├── AbLoop.kt              # the A-B marker pair, shared between the service and the UI
 ├── VolumeKnobView.kt      # custom circular volume knob
 ├── ArtLoader.kt           # async artwork loading + LRU cache
 ├── TrackAdapter.kt        # RecyclerView list adapter
 ├── AudioItem.kt           # audio model + MediaItem mapping
-├── Prefs.kt               # repeat / shuffle / volume-style persistence
+├── Prefs.kt               # repeat, shuffle, volume style, crossfade, mix-audio, trim-silence
 └── ThemeManager.kt        # light/dark/system theme
 ```
 
@@ -127,7 +145,7 @@ app/src/main/java/com/lull/player/
 - Sleep timer (fade out after N minutes)
 - Folder / playlist browsing and queues
 - Per‑track resume position
-- Gapless / crossfade options
+- Sensitivity control for trim silence (how quiet, and for how long, counts as a gap)
 
 ---
 
