@@ -36,6 +36,9 @@ class NowPlayingActivity : AppCompatActivity() {
         override fun onEvents(player: Player, events: Player.Events) { render() }
     }
 
+    /** The service can drop the markers on us (track change), so mirror its state rather than ours. */
+    private val abListener: () -> Unit = { renderAb() }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         ThemeManager.applySaved(this)
         super.onCreate(savedInstanceState)
@@ -54,6 +57,7 @@ class NowPlayingActivity : AppCompatActivity() {
         binding.btnShuffle.setOnClickListener { toggleShuffle() }
 
         setupSeek()
+        setupAbLoop()
         setupVolume()
 
         binding.volumeKnob.setColors(
@@ -77,12 +81,15 @@ class NowPlayingActivity : AppCompatActivity() {
             controller = c.also { it.addListener(playerListener) }
             render()
         }, ContextCompat.getMainExecutor(this))
+        AbLoop.addListener(abListener)
+        renderAb()
         handler.post(ticker)
     }
 
     override fun onStop() {
         super.onStop()
         handler.removeCallbacks(ticker)
+        AbLoop.removeListener(abListener)
         controller?.removeListener(playerListener)
         controllerFuture?.let { MediaController.releaseFuture(it) }
         controller = null
@@ -93,7 +100,7 @@ class NowPlayingActivity : AppCompatActivity() {
     private fun render() {
         val c = controller
         val item: MediaItem? = c?.currentMediaItem
-        if (c == null || item == null) { finishIfEmpty(); return }
+        if (c == null || item == null) { finishIfEmpty(); renderAb(); return }
 
         val md = item.mediaMetadata
         binding.title.text = md.title ?: ""
@@ -111,6 +118,7 @@ class NowPlayingActivity : AppCompatActivity() {
         }
         binding.btnShuffle.setColorFilter(if (c.shuffleModeEnabled) primary else onVariant)
 
+        renderAb()
         loadArt(item.mediaId)
     }
 
@@ -175,6 +183,65 @@ class NowPlayingActivity : AppCompatActivity() {
                 isSeeking = false
             }
         })
+    }
+
+    // ---------------- A-B loop ----------------
+
+    private fun setupAbLoop() {
+        binding.btnSetA.setOnClickListener {
+            val c = controller ?: return@setOnClickListener
+            val id = c.currentMediaItem?.mediaId ?: return@setOnClickListener
+            val at = c.currentPosition.coerceAtLeast(0L)
+            AbLoop.setA(id, at)
+            toast(getString(R.string.ab_a_set, TrackAdapter.formatDuration(at)))
+        }
+
+        binding.btnSetB.setOnClickListener {
+            val c = controller ?: return@setOnClickListener
+            val id = c.currentMediaItem?.mediaId ?: return@setOnClickListener
+            if (AbLoop.aMs == AbLoop.UNSET || AbLoop.mediaId != id) {
+                toast(getString(R.string.ab_need_a_first))
+                return@setOnClickListener
+            }
+            // duration is TIME_UNSET (negative) until the track is prepared; setB copes with that.
+            if (!AbLoop.setB(id, c.currentPosition, c.duration)) {
+                toast(getString(R.string.ab_too_short))
+            }
+        }
+
+        binding.btnAbClear.setOnClickListener {
+            AbLoop.clear()
+            toast(getString(R.string.ab_cleared))
+        }
+    }
+
+    private fun renderAb() {
+        val currentId = controller?.currentMediaItem?.mediaId
+        val mine = AbLoop.mediaId != null && AbLoop.mediaId == currentId
+        val aSet = mine && AbLoop.aMs != AbLoop.UNSET
+        val armed = mine && AbLoop.isArmed
+
+        val primary = themeColor(com.google.android.material.R.attr.colorPrimary)
+        val onSurface = themeColor(com.google.android.material.R.attr.colorOnSurface)
+        val onVariant = themeColor(com.google.android.material.R.attr.colorOnSurfaceVariant)
+
+        binding.abStatus.text = when {
+            armed -> getString(
+                R.string.ab_active,
+                TrackAdapter.formatDuration(AbLoop.aMs),
+                TrackAdapter.formatDuration(AbLoop.bMs)
+            )
+            aSet -> getString(R.string.ab_waiting_for_b, TrackAdapter.formatDuration(AbLoop.aMs))
+            else -> getString(R.string.ab_off)
+        }
+        binding.abStatus.setTextColor(if (armed) primary else onVariant)
+        binding.btnSetA.setTextColor(if (aSet) primary else onSurface)
+        binding.btnSetB.setTextColor(if (armed) primary else onSurface)
+
+        // Kept on screen at all times so the loop is never something you can't get out of;
+        // it just greys out when there is nothing to clear.
+        binding.btnAbClear.isEnabled = aSet
+        binding.btnAbClear.alpha = if (aSet) 1f else 0.35f
     }
 
     // ---------------- Repeat / shuffle ----------------
