@@ -14,8 +14,9 @@ object Prefs {
      *  sounding like a mashup. */
     const val MAX_CROSSFADE_SEC = 12
 
-    /** Public so [PlaybackService]'s preference listener can react only to this key. */
+    /** Public so [PlaybackService]'s preference listener can react only to these keys. */
     const val KEY_MIX_AUDIO = "mix_audio"
+    const val KEY_SKIP_SILENCE = "skip_silence"
 
     const val VOL_BAR = 0
     const val VOL_KNOB = 1
@@ -62,4 +63,18 @@ object Prefs {
 
     fun setCrossfadeSec(context: Context, seconds: Int) =
         sp(context).edit().putInt(KEY_CROSSFADE, seconds.coerceIn(0, MAX_CROSSFADE_SEC)).apply()
+
+    /**
+     * When true, stretches of near-silence are shortened as they play — dead air inside a track,
+     * and the padding at its head and tail. Off by default: it changes what you hear, and a rest
+     * the artist wrote is not a gap the player should close.
+     *
+     * Unlike crossfade this is not exclusive with gapless: it runs in the audio sink, below the
+     * transition, so it composes with whichever of the two is in effect.
+     */
+    fun skipSilence(context: Context): Boolean =
+        sp(context).getBoolean(KEY_SKIP_SILENCE, false)
+
+    fun setSkipSilence(context: Context, on: Boolean) =
+        sp(context).edit().putBoolean(KEY_SKIP_SILENCE, on).apply()
 }

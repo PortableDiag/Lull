@@ -16,6 +16,23 @@ A modern, dark‑first **music & white‑noise player for Android**, built for o
 
 ### Background playback
 - Built on a Media3 **`MediaSessionService`** foreground service: plays with the screen off or the app closed, shows a media notification with controls, handles audio focus, and pauses on headphone unplug.
+- **Mix with other audio** (on by default): keeps playing without grabbing audio focus, so another app's video or notification doesn't stop your music.
+
+### How tracks join: gapless, crossfade, trim silence
+Three independent settings shape what you hear between and inside tracks.
+
+| Setting | Default | What it does |
+|---|---|---|
+| **Gapless** | on | The Media3 default: consecutive tracks butt up against each other with no pause. |
+| **Crossfade** | off | Overlaps the end of one track with the start of the next (0–12s), on an **equal-power** sin/cos curve so the transition doesn't sag in the middle. Needs two tracks sounding at once, so `PlaybackService` keeps **two ExoPlayer engines** and swaps which one the media session points at when a fade completes. |
+| **Trim silence** | off | Shortens long runs of near-silence — dead air **inside** a track, plus the padding at its head and tail. |
+
+Crossfade and gapless are mutually exclusive by definition, and crossfade is skipped while **repeat-one** or an **A-B loop** is armed (both are requests to hear *this* track, not to blend it into something else).
+
+**Trim silence is not part of that trade-off.** It's ExoPlayer's `SilenceSkippingAudioProcessor`, which lives in the audio sink and shortens near-silent PCM as it plays out — *below* the track transition. So it works on any format with no scan of the file up front, and it composes with whichever of gapless or crossfade is in effect. It's off by default because it changes what you hear, and a rest the artist wrote is not a gap the player should close.
+
+### A-B loop
+- Mark **A** and **B** in a track and loop the region between them, driven from the service so it survives closing the UI. Re-reads the real playback position each pass, so seeking or pausing inside the region doesn't desync it.
 
 ### Volume knob *or* bar
 - The Now Playing screen offers a volume **slider bar** or a **circular knob** (drag around the dial) — switch with the tune button; your choice is saved. Both drive the device media volume, staying in sync with the hardware buttons.

@@ -128,6 +128,7 @@ class MainActivity : AppCompatActivity() {
             override fun onQueryTextChange(text: String?): Boolean { applyFilter(text ?: ""); return true }
         })
         menu.findItem(R.id.action_mix_audio).isChecked = Prefs.mixAudio(this)
+        menu.findItem(R.id.action_skip_silence).isChecked = Prefs.skipSilence(this)
         return true
     }
 
@@ -139,6 +140,19 @@ class MainActivity : AppCompatActivity() {
                 val on = !item.isChecked
                 item.isChecked = on
                 Prefs.setMixAudio(this, on)
+                true
+            }
+            R.id.action_skip_silence -> {
+                val on = !item.isChecked
+                item.isChecked = on
+                Prefs.setSkipSilence(this, on)
+                // The service applies this to the live player, but the change is only audible at
+                // the next gap — say so, or toggling it looks like it did nothing.
+                Toast.makeText(
+                    this,
+                    getString(if (on) R.string.skip_silence_on else R.string.skip_silence_off),
+                    Toast.LENGTH_SHORT
+                ).show()
                 true
             }
             else -> super.onOptionsItemSelected(item)
