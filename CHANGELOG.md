@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5 — 2026-07-18
+- **Playlists**: create, rename and delete playlists, and add or remove tracks. Long-press a track to add it to a playlist (or remove it, from inside a playlist). Playlists are stored as lists of track ids in `SharedPreferences`, so a track that has since been deleted is skipped when the playlist is shown rather than pruned.
+- **Reorder**: drag the handle on the right of a row to reorder a playlist; the new order is saved when you drop it. The handle only appears in a playlist view with no active search, where row position maps 1:1 to stored order.
+- **Opens where you left off**: the library reopens on the last collection you were viewing — All tracks or a specific playlist. Falls back to All tracks if that playlist was deleted.
+- The toolbar title now shows the current collection (the app name for All tracks, otherwise the playlist name). Switch or create playlists from the new Playlists toolbar action.
+
 ## 1.4 — 2026-07-12
 - **Trim silence** (off by default, in the overflow menu): shortens long stretches of near-silence as they play — dead air inside a track, and the padding at its head and tail. Runs in ExoPlayer's audio sink, below the track transition, so unlike crossfade it does not displace gapless playback; the two compose.
 - Note: with Trim silence on, the scrub bar jumps forward over a trimmed gap and a track ends before the bar reaches the end. The position is reported in media time, so this is expected rather than a glitch.

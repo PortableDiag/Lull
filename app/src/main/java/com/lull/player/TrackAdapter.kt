@@ -1,6 +1,8 @@
 package com.lull.player
 
+import android.annotation.SuppressLint
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
@@ -15,11 +17,21 @@ import java.util.concurrent.TimeUnit
 
 class TrackAdapter(
     private val scope: CoroutineScope,
-    private val onClick: (AudioItem, Int) -> Unit
+    private val onClick: (AudioItem, Int) -> Unit,
+    private val onLongClick: (AudioItem, Int) -> Unit = { _, _ -> },
+    private val onStartDrag: (RecyclerView.ViewHolder) -> Unit = {}
 ) : ListAdapter<AudioItem, TrackAdapter.VH>(DIFF) {
+
+    init { setHasStableIds(true) }
 
     var nowPlayingId: Long = -1
         set(value) { field = value; notifyDataSetChanged() }
+
+    /** Shows the reorder handle (playlist view only). Off in the library and while searching. */
+    var dragHandles: Boolean = false
+        set(value) { if (field != value) { field = value; notifyDataSetChanged() } }
+
+    override fun getItemId(position: Int): Long = getItem(position).id
 
     companion object {
         val DIFF = object : DiffUtil.ItemCallback<AudioItem>() {
@@ -44,6 +56,7 @@ class TrackAdapter(
         val title: TextView = view.findViewById(R.id.title)
         val subtitle: TextView = view.findViewById(R.id.subtitle)
         val duration: TextView = view.findViewById(R.id.duration)
+        val dragHandle: ImageView = view.findViewById(R.id.dragHandle)
         var job: Job? = null
     }
 
@@ -52,6 +65,7 @@ class TrackAdapter(
         return VH(v)
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onBindViewHolder(holder: VH, position: Int) {
         val item = getItem(position)
         holder.title.text = item.title
@@ -59,6 +73,13 @@ class TrackAdapter(
         holder.duration.text = formatDuration(item.durationMs)
         holder.equalizer.visibility = if (item.id == nowPlayingId) View.VISIBLE else View.GONE
         holder.itemView.setOnClickListener { onClick(item, holder.bindingAdapterPosition) }
+        holder.itemView.setOnLongClickListener { onLongClick(item, holder.bindingAdapterPosition); true }
+
+        holder.dragHandle.visibility = if (dragHandles) View.VISIBLE else View.GONE
+        holder.dragHandle.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) onStartDrag(holder)
+            false
+        }
 
         holder.job?.cancel()
         val cached = ArtLoader.cached(item)
@@ -73,6 +94,14 @@ class TrackAdapter(
                 }
             }
         }
+    }
+
+    /** Reflects a drag reorder in the list. Called for each single-step move by ItemTouchHelper. */
+    fun moveItem(from: Int, to: Int) {
+        if (from == to || from !in currentList.indices || to !in currentList.indices) return
+        val list = currentList.toMutableList()
+        list.add(to, list.removeAt(from))
+        submitList(list)
     }
 
     override fun onViewRecycled(holder: VH) {

@@ -72,4 +72,14 @@
         android:textColor="?attr/colorOnSurfaceVariant"
         android:textSize="12sp"
         android:text="0:00" />
+
+    <ImageView
+        android:id="@+id/dragHandle"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginStart="12dp"
+        android:src="@drawable/ic_reorder"
+        app:tint="?attr/colorOnSurfaceVariant"
+        android:visibility="gone"
+        android:contentDescription="@string/reorder" />
 </LinearLayout>

@@ -31,6 +31,12 @@ Crossfade and gapless are mutually exclusive by definition, and crossfade is ski
 
 **Trim silence is not part of that trade-off.** It's ExoPlayer's `SilenceSkippingAudioProcessor`, which lives in the audio sink and shortens near-silent PCM as it plays out — *below* the track transition. So it works on any format with no scan of the file up front, and it composes with whichever of gapless or crossfade is in effect. It's off by default because it changes what you hear, and a rest the artist wrote is not a gap the player should close.
 
+### Playlists
+- **Create, rename, delete** playlists, and **add / remove** tracks. Long-press a track to add it to a playlist; long-press inside a playlist to add or remove.
+- **Drag to reorder** with the handle on the right of a row (shown only in a playlist view with no active search, where row position maps 1:1 to stored order); the order is saved when you drop it.
+- **Opens where you left off** — the library reopens on the last collection you viewed (All tracks or a specific playlist), falling back to All tracks if that playlist was deleted.
+- Playlists are stored as lists of MediaStore ids in `SharedPreferences`, so they cost almost nothing and survive files moving; a track that has since been deleted is **skipped** when the playlist is shown, not pruned, so it returns if the file (or SD card) reappears.
+
 ### A-B loop
 - Mark **A** and **B** in a track and loop the region between them, driven from the service so it survives closing the UI. Re-reads the real playback position each pass, so seeking or pausing inside the region doesn't desync it.
 
@@ -126,11 +132,12 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 
 ```
 app/src/main/java/com/lull/player/
-├── MainActivity.kt        # library: MediaStore query, list, mini-player, permissions, settings menu
+├── MainActivity.kt        # library: MediaStore query, list, mini-player, permissions, settings menu, playlists
 ├── NowPlayingActivity.kt  # full controls: scrub, A-B loop, shuffle, repeat, volume bar/knob
 ├── PlaybackService.kt     # MediaSessionService — background playback, crossfade, A-B, trim silence
 ├── RepeatAwarePlayer.kt   # makes next/prev restart the track when repeat-one is on
 ├── AbLoop.kt              # the A-B marker pair, shared between the service and the UI
+├── PlaylistStore.kt       # playlists (create/rename/delete/add/remove/reorder) + last-viewed collection
 ├── VolumeKnobView.kt      # custom circular volume knob
 ├── ArtLoader.kt           # async artwork loading + LRU cache
 ├── TrackAdapter.kt        # RecyclerView list adapter
@@ -143,7 +150,7 @@ app/src/main/java/com/lull/player/
 
 ## Roadmap ideas
 - Sleep timer (fade out after N minutes)
-- Folder / playlist browsing and queues
+- Folder browsing
 - Per‑track resume position
 - Sensitivity control for trim silence (how quiet, and for how long, counts as a gap)
 
