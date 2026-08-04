@@ -26,6 +26,10 @@
         android:title="@string/delete_playlist"
         app:showAsAction="never" />
     <item
+        android:id="@+id/action_sleep_timer"
+        android:title="@string/sleep_timer"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/action_crossfade"
         android:title="@string/crossfade"
         app:showAsAction="never" />

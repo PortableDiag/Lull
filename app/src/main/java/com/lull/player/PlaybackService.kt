@@ -21,9 +21,11 @@ import kotlin.math.sin
  * a media notification while playing, and routes lock-screen / Bluetooth / headset media
  * buttons to the session player (our [RepeatAwarePlayer]).
  *
- * It also owns the two features a single ExoPlayer can't express on its own:
+ * It also owns the three features a single ExoPlayer can't express on its own:
  *
  *  - the [AbLoop] region, wrapped from B back to A by a poller, so it survives the UI closing;
+ *  - the [SleepTimer] countdown and its fade-to-pause, for the same reason — it has to keep
+ *    running with the screen off, which is the only state it is ever used in;
  *  - crossfade, which is *by definition* two tracks sounding at once. One ExoPlayer decodes one
  *    stream, so we keep two engines: one audible, one warming up the next track. At the end of a
  *    fade the standby engine becomes the session's player and the roles swap.
@@ -54,6 +56,11 @@ class PlaybackService : MediaSessionService() {
     private var fadeStartedAt = 0L
     private var fadeSpanMs = 0L
 
+    // Crossfade's own gain for each engine. The sleep timer scales both on top of these; see
+    // [applyVolumes], which is the only thing that writes ExoPlayer.volume.
+    private var crossActive = 1f
+    private var crossStandby = 0f
+
     // Settings that the MediaController can't carry (neither is part of the Player interface) are
     // toggled through preferences and picked up here, so they take effect without restarting
     // playback: audio focus handling for "Mix with other audio", skip-silence for "Trim silence".
@@ -65,6 +72,15 @@ class PlaybackService : MediaSessionService() {
     }
 
     private val abListener: () -> Unit = { syncAbWatcher() }
+
+    /**
+     * Arming while paused (or with crossfade off) must not have to wait out a one-second idle
+     * poll before the countdown starts moving, so re-time the ticker the moment it changes.
+     */
+    private val sleepListener: () -> Unit = {
+        handler.removeCallbacks(ticker)
+        handler.post(ticker)
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -86,6 +102,7 @@ class PlaybackService : MediaSessionService() {
 
         prefs().registerOnSharedPreferenceChangeListener(prefsListener)
         AbLoop.addListener(abListener)
+        SleepTimer.addListener(sleepListener)
         handler.post(ticker)
     }
 
@@ -126,13 +143,28 @@ class PlaybackService : MediaSessionService() {
     private val ticker = object : Runnable {
         override fun run() {
             if (crossfading) stepCrossfade() else maybeStartCrossfade()
+            stepSleep()
             val next = when {
-                crossfading -> FADE_STEP_MS
+                crossfading || SleepTimer.isFading -> FADE_STEP_MS
                 active?.isPlaying == true -> POLL_PLAYING_MS
                 else -> POLL_IDLE_MS
             }
             handler.postDelayed(this, next)
         }
+    }
+
+    /**
+     * The only writer of engine volume.
+     *
+     * Crossfade and the sleep timer both want to control it, and either can be running while the
+     * other is. So each contributes an independent gain and they multiply here: a sleep fade that
+     * lands mid-crossfade dims the pair together, rather than the two of them overwriting each
+     * other's value 25 times a second.
+     */
+    private fun applyVolumes() {
+        val sleep = SleepTimer.gain()
+        active?.volume = crossActive * sleep
+        standby?.volume = crossStandby * sleep
     }
 
     private fun maybeStartCrossfade() {
@@ -159,6 +191,11 @@ class PlaybackService : MediaSessionService() {
         if (span < MIN_FADE_MS) return
         if (duration - a.currentPosition > span) return
 
+        // Don't open a transition the sleep timer is about to close. Fading a new track in during
+        // the last seconds before everything stops is wasted work, and it would make the track you
+        // hear last one you never chose to end on.
+        if (SleepTimer.isArmed && SleepTimer.remainingMs() <= span) return
+
         startCrossfade(next, span)
     }
 
@@ -176,7 +213,9 @@ class PlaybackService : MediaSessionService() {
         b.repeatMode = a.repeatMode
         b.shuffleModeEnabled = a.shuffleModeEnabled
         b.setMediaItems(items, nextIndex, 0L)
-        b.volume = 0f
+        crossActive = 1f
+        crossStandby = 0f
+        applyVolumes()
         b.prepare()
         b.play()
 
@@ -186,16 +225,16 @@ class PlaybackService : MediaSessionService() {
     }
 
     private fun stepCrossfade() {
-        val a = active ?: return
-        val b = standby ?: return
+        if (active == null || standby == null) return
         val t = ((SystemClock.uptimeMillis() - fadeStartedAt).toFloat() / fadeSpanMs).coerceIn(0f, 1f)
 
         // Equal-power (sin/cos), not linear. Two different tracks are uncorrelated signals, so
         // linear ramps that cross at 0.5 sum to ~3dB below either track — an audible sag in the
         // middle of every transition. sin/cos crosses at 0.707 and keeps summed power flat.
         val angle = t * (Math.PI / 2).toFloat()
-        a.volume = cos(angle)
-        b.volume = sin(angle)
+        crossActive = cos(angle)
+        crossStandby = sin(angle)
+        applyVolumes()
 
         if (t >= 1f) finishCrossfade()
     }
@@ -204,15 +243,18 @@ class PlaybackService : MediaSessionService() {
     private fun finishCrossfade() {
         val session = mediaSession ?: return
         val old = active ?: return
-        val new = standby ?: return
+        if (standby == null) return
         crossfading = false
 
-        new.volume = 1f
         old.stop()
         old.clearMediaItems()
-        old.volume = 1f
 
         activeIndex = 1 - activeIndex
+        // Reset *after* the swap: crossActive/crossStandby name roles, not engines.
+        crossActive = 1f
+        crossStandby = 0f
+        applyVolumes()
+
         session.setPlayer(wrappers[activeIndex]!!)
         applyAudioFocus()   // focus is only requested once the outgoing engine has let go of it.
     }
@@ -224,9 +266,39 @@ class PlaybackService : MediaSessionService() {
         standby?.apply {
             stop()
             clearMediaItems()
-            volume = 0f
         }
-        active?.volume = 1f
+        crossActive = 1f
+        crossStandby = 0f
+        applyVolumes()
+    }
+
+    // ---------------- Sleep timer ----------------
+
+    /**
+     * Runs the countdown. Volume only needs stepping once the fade has started — until then the
+     * gain is a flat 1 and writing it every tick would be pointless traffic to the audio sink.
+     */
+    private fun stepSleep() {
+        if (!SleepTimer.isArmed) return
+        if (SleepTimer.remainingMs() <= 0L) { finishSleep(); return }
+        if (SleepTimer.isFading) applyVolumes()
+    }
+
+    /**
+     * Timer expired: stop the music, *then* hand the volume back.
+     *
+     * That order is deliberate. Clearing the timer first would restore the gain to 1 while the
+     * track is still sounding, so the last thing you'd hear is a fraction of a second at full
+     * volume — exactly the thing a sleep timer exists to prevent. Restoring it afterwards leaves
+     * the player ready to be pressed play again.
+     *
+     * Pause, not stop: the queue and your place in it survive, so this is recoverable in one tap.
+     */
+    private fun finishSleep() {
+        if (crossfading) abortCrossfade()
+        active?.pause()
+        SleepTimer.cancel()
+        applyVolumes()
     }
 
     // ---------------- A-B loop ----------------
@@ -309,6 +381,8 @@ class PlaybackService : MediaSessionService() {
         handler.removeCallbacks(abWatcher)
         AbLoop.removeListener(abListener)
         AbLoop.clear()
+        SleepTimer.removeListener(sleepListener)
+        SleepTimer.cancel()
         prefs().unregisterOnSharedPreferenceChangeListener(prefsListener)
 
         mediaSession?.release()

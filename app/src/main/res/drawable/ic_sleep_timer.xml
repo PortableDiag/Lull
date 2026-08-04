@@ -1,0 +1,16 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!--
+      Crescent moon, bounded by two arcs meeting where the circles cross:
+        outer  - circle (12,12) r9, the long way round (large-arc, counter-sweep)
+        inner  - circle (16,8) r8.5, the short way back
+      Drawn as arcs rather than two discs under evenOdd: evenOdd XORs, so the part of
+      the inner disc hanging outside the outer one would fill in instead of cutting out.
+    -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M8.715,3.621 A9,9 0 1,0 20.379,15.285 A8.5,8.5 0 0,1 8.715,3.621 Z" />
+</vector>
