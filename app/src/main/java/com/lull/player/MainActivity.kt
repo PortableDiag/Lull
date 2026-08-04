@@ -162,6 +162,15 @@ class MainActivity : AppCompatActivity() {
         val inPlaylist = collectionKey != PlaylistStore.ALL
         menu.findItem(R.id.action_rename_playlist)?.isVisible = inPlaylist
         menu.findItem(R.id.action_delete_playlist)?.isVisible = inPlaylist
+
+        // Re-read each time the overflow opens, so a running timer shows what's left on it.
+        menu.findItem(R.id.action_sleep_timer)?.title =
+            if (SleepTimer.isArmed)
+                getString(
+                    R.string.sleep_timer_menu,
+                    TrackAdapter.formatDuration(SleepTimer.remainingMs())
+                )
+            else getString(R.string.sleep_timer)
         return super.onPrepareOptionsMenu(menu)
     }
 
@@ -171,6 +180,7 @@ class MainActivity : AppCompatActivity() {
             R.id.action_playlists -> { showPlaylistsDialog(); true }
             R.id.action_rename_playlist -> { currentPlaylist()?.let { showRenameDialog(it) }; true }
             R.id.action_delete_playlist -> { currentPlaylist()?.let { confirmDeletePlaylist(it) }; true }
+            R.id.action_sleep_timer -> { SleepTimerDialog.show(this); true }
             R.id.action_crossfade -> { showCrossfadeDialog(); true }
             R.id.action_mix_audio -> {
                 val on = !item.isChecked

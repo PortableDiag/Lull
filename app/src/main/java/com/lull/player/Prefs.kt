@@ -9,10 +9,14 @@ object Prefs {
     private const val KEY_SHUFFLE = "shuffle"
     private const val KEY_VOL_STYLE = "volume_style"
     private const val KEY_CROSSFADE = "crossfade_sec"
+    private const val KEY_SLEEP_MINUTES = "sleep_minutes"
 
     /** Longest crossfade we offer. Beyond this it stops sounding like a transition and starts
      *  sounding like a mashup. */
     const val MAX_CROSSFADE_SEC = 12
+
+    /** Pre-selected the first time the sleep-timer dialog is opened. */
+    const val DEFAULT_SLEEP_MINUTES = 30
 
     /** Public so [PlaybackService]'s preference listener can react only to these keys. */
     const val KEY_MIX_AUDIO = "mix_audio"
@@ -77,4 +81,16 @@ object Prefs {
 
     fun setSkipSilence(context: Context, on: Boolean) =
         sp(context).edit().putBoolean(KEY_SKIP_SILENCE, on).apply()
+
+    /**
+     * The duration the sleep-timer dialog offers first.
+     *
+     * Only the *choice* is remembered — a running countdown is deliberately not persisted, since
+     * restoring one after a restart would be a promise about a device that was switched off.
+     */
+    fun sleepMinutes(context: Context): Int =
+        sp(context).getInt(KEY_SLEEP_MINUTES, DEFAULT_SLEEP_MINUTES)
+
+    fun setSleepMinutes(context: Context, minutes: Int) =
+        sp(context).edit().putInt(KEY_SLEEP_MINUTES, minutes).apply()
 }

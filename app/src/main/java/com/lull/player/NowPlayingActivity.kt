@@ -39,6 +39,9 @@ class NowPlayingActivity : AppCompatActivity() {
     /** The service can drop the markers on us (track change), so mirror its state rather than ours. */
     private val abListener: () -> Unit = { renderAb() }
 
+    /** The service clears the timer when it fires, so mirror its state rather than ours. */
+    private val sleepListener: () -> Unit = { renderSleep() }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         ThemeManager.applySaved(this)
         super.onCreate(savedInstanceState)
@@ -50,6 +53,7 @@ class NowPlayingActivity : AppCompatActivity() {
 
         binding.btnBack.setOnClickListener { finish() }
         binding.btnTheme.setOnClickListener { showThemeDialog() }
+        binding.btnSleep.setOnClickListener { SleepTimerDialog.show(this) }
         binding.btnPlayPause.setOnClickListener { controller?.let { if (it.isPlaying) it.pause() else it.play() } }
         binding.btnNext.setOnClickListener { controller?.seekToNext() }
         binding.btnPrev.setOnClickListener { controller?.seekToPrevious() }
@@ -82,7 +86,9 @@ class NowPlayingActivity : AppCompatActivity() {
             render()
         }, ContextCompat.getMainExecutor(this))
         AbLoop.addListener(abListener)
+        SleepTimer.addListener(sleepListener)
         renderAb()
+        renderSleep()
         handler.post(ticker)
     }
 
@@ -90,6 +96,7 @@ class NowPlayingActivity : AppCompatActivity() {
         super.onStop()
         handler.removeCallbacks(ticker)
         AbLoop.removeListener(abListener)
+        SleepTimer.removeListener(sleepListener)
         controller?.removeListener(playerListener)
         controllerFuture?.let { MediaController.releaseFuture(it) }
         controller = null
@@ -155,6 +162,7 @@ class NowPlayingActivity : AppCompatActivity() {
                 binding.position.text = TrackAdapter.formatDuration(c.currentPosition)
             }
             syncVolumeUi()
+            if (SleepTimer.isArmed) renderSleep()   // the countdown has to move on its own.
             handler.postDelayed(this, 500)
         }
     }
@@ -242,6 +250,30 @@ class NowPlayingActivity : AppCompatActivity() {
         // it just greys out when there is nothing to clear.
         binding.btnAbClear.isEnabled = aSet
         binding.btnAbClear.alpha = if (aSet) 1f else 0.35f
+    }
+
+    // ---------------- Sleep timer ----------------
+
+    /**
+     * While a timer is running the top label counts it down instead of saying "Now playing" —
+     * the one thing you'd want to know at a glance, on the screen you'd glance at.
+     */
+    private fun renderSleep() {
+        val armed = SleepTimer.isArmed
+        val primary = themeColor(com.google.android.material.R.attr.colorPrimary)
+
+        binding.topLabel.text =
+            if (armed) getString(
+                R.string.sleep_timer_remaining,
+                TrackAdapter.formatDuration(SleepTimer.remainingMs())
+            )
+            else getString(R.string.now_playing)
+        binding.topLabel.setTextColor(
+            if (armed) primary else themeColor(com.google.android.material.R.attr.colorOnSurfaceVariant)
+        )
+        binding.btnSleep.setColorFilter(
+            if (armed) primary else themeColor(com.google.android.material.R.attr.colorOnSurface)
+        )
     }
 
     // ---------------- Repeat / shuffle ----------------

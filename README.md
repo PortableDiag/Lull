@@ -14,6 +14,15 @@ A modern, dark‑first **music & white‑noise player for Android**, built for o
 - The skip buttons stay enabled even on a single‑track queue, so they're tappable‑to‑restart.
 - Off / All repeat modes skip tracks normally. Your repeat & shuffle choices are **remembered**, so a white‑noise loop comes back the way you left it.
 
+### Sleep timer
+The other half of falling asleep to a looping track: **play for 5–90 minutes, fade out, then pause.**
+
+- Set it from the **moon button** on Now Playing, or from **Sleep timer** in the library's overflow menu. While it's running the Now Playing title bar counts it down (`Sleep in 24:31`) and the menu entry shows the time left.
+- The last **30 seconds** are a **raised-cosine fade** to silence. That curve is flat at both ends, so the fade eases in without an audible step and settles onto silence instead of arriving at it still dropping — on a track you're falling asleep to, the moment a fade visibly *begins* is as disruptive as the moment it ends. On a short timer the fade is capped at half the total.
+- It ends on **pause**, not stop, so the queue and your place in it survive — one tap to carry on.
+- The countdown runs in `PlaybackService`, so it survives closing the app, and it's measured against `elapsedRealtime` so it counts **through device sleep** rather than stopping with the CPU. A running timer isn't persisted across a restart: restoring a countdown would be a promise about a device that was switched off.
+- It composes with crossfade rather than fighting it — the two contribute independent gains that are multiplied in one place, so a fade-out landing mid-transition dims the pair together. A crossfade that *wouldn't finish* before the deadline is skipped outright, so the track you hear last isn't one you never chose to end on.
+
 ### Background playback
 - Built on a Media3 **`MediaSessionService`** foreground service: plays with the screen off or the app closed, shows a media notification with controls, handles audio focus, and pauses on headphone unplug.
 - **Mix with other audio** (on by default): keeps playing without grabbing audio focus, so another app's video or notification doesn't stop your music.
@@ -59,11 +68,12 @@ Everything persistent is in the **overflow menu** on the library screen, and is 
 | Menu item | Type | Default |
 |---|---|---|
 | **Theme** | Follow system / Light / Dark | Dark |
+| **Sleep timer** | Off / 5–90 minutes | Off |
 | **Crossfade** | Slider, 0–12s (0 = off) | Off |
 | **Trim silence** | Checkbox | Off |
 | **Mix with other audio** | Checkbox | On |
 
-Repeat, shuffle and the volume bar/knob choice are set on the **Now Playing** screen; the **A-B loop** buttons are there too.
+Repeat, shuffle and the volume bar/knob choice are set on the **Now Playing** screen; the **A-B loop** buttons and the **sleep timer** (moon) are there too. The sleep timer is the one entry that isn't a persistent setting — a running countdown is intentionally dropped on restart, and only the duration you last picked is remembered.
 
 None of the three playback settings can be pushed through a `MediaController`: crossfade is Lull's own concept rather than a Media3 one, and skip-silence and audio-focus handling live on `ExoPlayer` and not on the `Player` interface a controller talks to. So all three are written to `SharedPreferences` and picked up by `PlaybackService` through an `OnSharedPreferenceChangeListener`, which is what lets them take effect on the *live* player without restarting playback.
 
@@ -137,6 +147,8 @@ app/src/main/java/com/lull/player/
 ├── PlaybackService.kt     # MediaSessionService — background playback, crossfade, A-B, trim silence
 ├── RepeatAwarePlayer.kt   # makes next/prev restart the track when repeat-one is on
 ├── AbLoop.kt              # the A-B marker pair, shared between the service and the UI
+├── SleepTimer.kt          # sleep-timer deadline + fade gain, shared the same way
+├── SleepTimerDialog.kt    # the duration picker, shared by both screens
 ├── PlaylistStore.kt       # playlists (create/rename/delete/add/remove/reorder) + last-viewed collection
 ├── VolumeKnobView.kt      # custom circular volume knob
 ├── ArtLoader.kt           # async artwork loading + LRU cache
@@ -149,7 +161,6 @@ app/src/main/java/com/lull/player/
 ---
 
 ## Roadmap ideas
-- Sleep timer (fade out after N minutes)
 - Folder browsing
 - Per‑track resume position
 - Sensitivity control for trim silence (how quiet, and for how long, counts as a gap)
