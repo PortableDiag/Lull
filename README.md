@@ -77,6 +77,7 @@ It works on **groups** as well as tracks: long-press an album, folder or genre a
 
 ### Library & playback
 - Material 3 list of all device audio with album/embedded artwork, via **MediaStore**.
+- **What counts as "your audio"**: everything except the system's own noises — ringtones, alarms and notification sounds are excluded, and music, podcasts, **audiobooks** and voice recordings are all listed. Filtering on MediaStore's `IS_MUSIC` instead would be the obvious thing and is wrong: an audiobook has `IS_MUSIC = 0`, so on a device that is mostly spoken word it hides most of the library.
 - Tap‑to‑expand **mini‑player** plus a full **Now Playing** screen: artwork, scrub bar, shuffle, repeat cycle, previous / play / next.
 - **Light / dark / follow‑system** themes — **defaults to dark**.
 
