@@ -90,4 +90,47 @@
     <string name="volume_bar">Bar</string>
     <string name="volume_knob">Knob</string>
     <string name="switch_volume_style">Switch volume style</string>
+    <!-- Browse views -->
+    <string name="tab_tracks">Tracks</string>
+    <string name="tab_folders">Folders</string>
+    <string name="tab_artists">Artists</string>
+    <string name="tab_albums">Albums</string>
+    <string name="tab_genres">Genres</string>
+    <string name="tab_playlists">Playlists</string>
+    <string name="unknown_genre">Unknown genre</string>
+    <string name="unknown_album">Unknown album</string>
+    <string name="track_count">%1$d tracks</string>
+    <string name="track_count_one">1 track</string>
+    <string name="no_folders">No folders found.</string>
+    <string name="no_artists">No artists found.</string>
+    <string name="no_albums">No albums found.</string>
+    <string name="no_genres">Nothing on this device carries a genre tag.</string>
+    <string name="no_playlists">No playlists yet.\nTap + to make one, or select tracks and add them.</string>
+    <string name="search_groups_hint">Search this view</string>
+
+    <!-- Multi-selection -->
+    <string name="selected">Selected</string>
+    <string name="selected_count">%1$d selected</string>
+    <string name="select_all">Select all</string>
+    <string name="selection_play">Play</string>
+    <string name="selection_queue">Add to queue</string>
+    <string name="selection_add_playlist">Add to playlist</string>
+    <string name="selection_remove">Remove from playlist</string>
+    <string name="queued_count">%1$d added to the queue</string>
+    <string name="added_count_to_playlist">%1$d added to %2$s</string>
+    <string name="added_none_to_playlist">Already in %1$s</string>
+    <string name="removed_count_from_playlist">%1$d removed from %2$s</string>
+    <string name="nothing_selected">Nothing selected</string>
+
+    <!-- Playlist manager -->
+    <string name="playlist_actions">Playlist actions</string>
+    <string name="duplicate_playlist">Duplicate</string>
+    <string name="playlist_duplicated">Copied to %1$s</string>
+    <string name="copy_suffix">%1$s copy</string>
+    <string name="play_playlist">Play</string>
+    <string name="playlist_empty_cannot_play">That playlist is empty</string>
+
+    <!-- Opened from another app -->
+    <string name="opened_single">Playing one file — the folder could not be read</string>
+    <string name="open_failed">Lull could not open that file</string>
 </resources>

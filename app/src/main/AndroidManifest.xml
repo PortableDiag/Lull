@@ -17,13 +17,85 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Lull">
 
+        <!--
+            singleTask so opening a second file from a file manager is delivered to the running
+            library through onNewIntent, rather than stacking another copy of it on the task.
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:theme="@style/Theme.Lull">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+                Open-with from a file manager. Audio arrives typed far more often than not, so the
+                mime filter is the main road; ogg/flac are listed explicitly because a fair number
+                of providers still type them application/* rather than audio/*.
+            -->
+            <intent-filter android:label="@string/app_name">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="application/ogg" />
+                <data android:mimeType="application/x-ogg" />
+                <data android:mimeType="application/flac" />
+                <data android:mimeType="application/x-flac" />
+            </intent-filter>
+
+            <!--
+                The same, for senders that give us a bare uri with no type at all. Matching on the
+                extension only works when the uri carries one — true for file:// and for most
+                file managers' FileProvider uris, not for MediaStore ids — so this is a net, not a
+                replacement for the mime filter above.
+            -->
+            <intent-filter android:label="@string/app_name">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.mp3" />
+                <data android:pathPattern=".*\\.MP3" />
+                <data android:pathPattern=".*\\.wav" />
+                <data android:pathPattern=".*\\.WAV" />
+                <data android:pathPattern=".*\\.m4a" />
+                <data android:pathPattern=".*\\.M4A" />
+                <data android:pathPattern=".*\\.flac" />
+                <data android:pathPattern=".*\\.FLAC" />
+                <data android:pathPattern=".*\\.ogg" />
+                <data android:pathPattern=".*\\.oga" />
+                <data android:pathPattern=".*\\.opus" />
+                <data android:pathPattern=".*\\.aac" />
+                <data android:pathPattern=".*\\.mka" />
+                <data android:pathPattern=".*\\.wma" />
+                <data android:pathPattern=".*\\.aiff" />
+                <data android:pathPattern=".*\\.aif" />
+                <data android:pathPattern=".*\\.mid" />
+                <data android:pathPattern=".*\\.amr" />
+                <data android:pathPattern=".*\\.ape" />
+                <data android:pathPattern=".*\\.wv" />
+                <data android:pathPattern=".*\\.mpga" />
+                <data android:pathPattern=".*\\.3gp" />
+            </intent-filter>
+
+            <!-- Share sheet: send one track, or a selection, straight to Lull. -->
+            <intent-filter android:label="@string/app_name">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="audio/*" />
+            </intent-filter>
+            <intent-filter android:label="@string/app_name">
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="audio/*" />
             </intent-filter>
         </activity>
 

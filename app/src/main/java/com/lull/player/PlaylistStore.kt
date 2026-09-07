@@ -24,6 +24,7 @@ object PlaylistStore {
     private const val KEY_PLAYLISTS = "playlists"
     private const val KEY_NEXT_ID = "playlist_next_id"
     private const val KEY_LAST = "last_collection"
+    private const val KEY_LAST_TAB = "last_tab"
 
     /** Collection key for the whole device library (the default view). */
     const val ALL = "all"
@@ -66,7 +67,42 @@ object PlaylistStore {
         return true
     }
 
+    /**
+     * Appends [trackIds], skipping any already present, and returns how many were actually added.
+     * One write for the whole batch — adding 40 tracks one call at a time would rewrite the JSON
+     * 40 times and lose any that landed while it was doing so.
+     */
+    fun addTracks(c: Context, id: Long, trackIds: List<Long>): Int {
+        val list = all(c).toMutableList()
+        val idx = list.indexOfFirst { it.id == id }
+        if (idx < 0) return 0
+        val existing = list[idx].trackIds
+        val fresh = trackIds.filter { it !in existing }.distinct()
+        if (fresh.isEmpty()) return 0
+        list[idx] = list[idx].copy(trackIds = existing + fresh)
+        write(c, list)
+        return fresh.size
+    }
+
     fun removeTrack(c: Context, id: Long, trackId: Long) = updateTracks(c, id) { it - trackId }
+
+    fun removeTracks(c: Context, id: Long, trackIds: List<Long>) {
+        val drop = trackIds.toSet()
+        updateTracks(c, id) { ids -> ids.filterNot { it in drop } }
+    }
+
+    /** A new playlist holding [trackIds], created in one write. */
+    fun createWith(c: Context, name: String, trackIds: List<Long>): Playlist {
+        val playlist = create(c, name)
+        if (trackIds.isNotEmpty()) addTracks(c, playlist.id, trackIds)
+        return get(c, playlist.id) ?: playlist
+    }
+
+    /** Copies a playlist, contents and all. Cheap, and the safe way to try a different order. */
+    fun duplicate(c: Context, id: Long, name: String): Playlist? {
+        val source = get(c, id) ?: return null
+        return createWith(c, name, source.trackIds)
+    }
 
     fun setOrder(c: Context, id: Long, trackIds: List<Long>) = updateTracks(c, id) { trackIds }
 
@@ -86,6 +122,13 @@ object PlaylistStore {
 
     fun setLastCollection(c: Context, collectionKey: String) =
         sp(c).edit().putString(KEY_LAST, collectionKey).apply()
+
+    /** Which browse tab the library was last on, by [LibraryTab] name. */
+    fun lastTab(c: Context): String = sp(c).getString(KEY_LAST_TAB, LibraryTab.TRACKS.name)
+        ?: LibraryTab.TRACKS.name
+
+    fun setLastTab(c: Context, tab: String) =
+        sp(c).edit().putString(KEY_LAST_TAB, tab).apply()
 
     // ---------------- JSON ----------------
 

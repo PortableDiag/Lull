@@ -40,8 +40,31 @@ Crossfade and gapless are mutually exclusive by definition, and crossfade is ski
 
 **Trim silence is not part of that trade-off.** It's ExoPlayer's `SilenceSkippingAudioProcessor`, which lives in the audio sink and shortens near-silent PCM as it plays out — *below* the track transition. So it works on any format with no scan of the file up front, and it composes with whichever of gapless or crossfade is in effect. It's off by default because it changes what you hear, and a rest the artist wrote is not a gap the player should close.
 
+### Opening audio from a file manager
+Lull registers for **`ACTION_VIEW` on audio** — `audio/*`, plus the `application/ogg` and `application/flac` spellings some providers still use, over `content://` and `file://` — so it appears in **Open with** for `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`, `.opus` and the rest. There is a second, extension-matched filter for senders that hand over a bare uri with no type at all, and Lull accepts a **share** (`SEND` / `SEND_MULTIPLE`) as well.
+
+Opening one track gives you **its whole folder**, so Next pages through it. Three routes, tried in order:
+
+1. **The `ClipData` the launching app attached.** A file manager already knows the folder; when it attaches the siblings, the read grant on the intent covers every one of them. No permission, no lookup — and it is the only route that works for a `.nomedia` folder. (Sift does this for audio; other file managers would have to adopt the same convention.)
+2. **The folder, out of Lull's own library** — resolve the opened file to a real path, then take every track the library holds from that directory.
+3. **The single file**, which always works.
+
+Route 2's path resolution is the awkward part: a file manager typically hands over its own `content://<their.app>.fileprovider/…` uri, which answers neither a MediaStore id nor a `DATA` column. The descriptor it opens still points at the real file, though, and `/proc/self/fd/N` is a symlink to it — so the folder is recoverable even when the uri says nothing. (Same problem, same fix as in Loopr.)
+
+**A launch from another app never waits on media permission.** Without it there is nothing to load and the intent's own grant carries the playback; with it, the library load is awaited first so the folder can be built.
+
+### Browsing: folders, artists, albums, genres
+The flat list of every track is fine for a phone holding a dozen files and useless for one holding thousands, so the same library is offered **six ways**: Tracks, Folders, Artists, Albums, Genres and Playlists. Each grouped tab is a list you drill into and Back out of; re-tapping the current tab also comes back out. **The tab and the group you were on are both remembered.**
+
+Genre is read from MediaStore's **genre membership tables** rather than the `GENRE` column on a track, which only exists from API 30. That is one query per genre — tens, not thousands — run once per load on the IO dispatcher.
+
+### Multi-selection
+**Long-press any row to start selecting**, then tap to add more. The contextual bar offers **play**, **add to queue**, **add to playlist**, **remove from this playlist**, and **select all**.
+
+It works on **groups** as well as tracks: long-press an album, folder or genre and everything inside it comes with the selection, without opening it first. Selection is held by **track id rather than row position**, so it survives a search keystroke or a playlist edit — positions would not. The reorder handles hide while a selection is running, because dragging and selecting are otherwise two gestures fighting over the same row.
+
 ### Playlists
-- **Create, rename, delete** playlists, and **add / remove** tracks. Long-press a track to add it to a playlist; long-press inside a playlist to add or remove.
+- Playlists are **their own tab**, with a per-row menu — **play, rename, duplicate, delete** — and a button to make a new one. Long-press tracks and add the whole selection at once; adding a selection is **one write** for the batch rather than one per track.
 - **Drag to reorder** with the handle on the right of a row (shown only in a playlist view with no active search, where row position maps 1:1 to stored order); the order is saved when you drop it.
 - **Opens where you left off** — the library reopens on the last collection you viewed (All tracks or a specific playlist), falling back to All tracks if that playlist was deleted.
 - Playlists are stored as lists of MediaStore ids in `SharedPreferences`, so they cost almost nothing and survive files moving; a track that has since been deleted is **skipped** when the playlist is shown, not pruned, so it returns if the file (or SD card) reappears.
@@ -142,7 +165,11 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 
 ```
 app/src/main/java/com/lull/player/
-├── MainActivity.kt        # library: MediaStore query, list, mini-player, permissions, settings menu, playlists
+├── MainActivity.kt        # library: six browse tabs, drill-down, multi-select, mini-player, playlists
+├── MediaLibrary.kt        # the MediaStore load, with folder + genre columns
+├── Browse.kt              # the browse axes and how the library is grouped into them
+├── GroupAdapter.kt        # rows of folders / artists / albums / genres / playlists
+├── OpenIntent.kt          # launches from another app: ClipData, folder resolution, single file
 ├── NowPlayingActivity.kt  # full controls: scrub, A-B loop, shuffle, repeat, volume bar/knob
 ├── PlaybackService.kt     # MediaSessionService — background playback, crossfade, A-B, trim silence
 ├── RepeatAwarePlayer.kt   # makes next/prev restart the track when repeat-one is on
@@ -161,7 +188,6 @@ app/src/main/java/com/lull/player/
 ---
 
 ## Roadmap ideas
-- Folder browsing
 - Per‑track resume position
 - Sensitivity control for trim silence (how quiet, and for how long, counts as a gap)
 

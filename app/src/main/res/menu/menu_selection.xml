@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The contextual action bar shown while tracks or groups are selected. -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/sel_play"
+        android:icon="@drawable/ic_play_arrow"
+        android:title="@string/selection_play"
+        app:showAsAction="ifRoom" />
+    <item
+        android:id="@+id/sel_add_playlist"
+        android:icon="@drawable/ic_add"
+        android:title="@string/selection_add_playlist"
+        app:showAsAction="ifRoom" />
+    <item
+        android:id="@+id/sel_queue"
+        android:icon="@drawable/ic_queue"
+        android:title="@string/selection_queue"
+        app:showAsAction="ifRoom" />
+    <item
+        android:id="@+id/sel_select_all"
+        android:icon="@drawable/ic_select_all"
+        android:title="@string/select_all"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/sel_remove"
+        android:icon="@drawable/ic_delete"
+        android:title="@string/selection_remove"
+        app:showAsAction="never" />
+</menu>

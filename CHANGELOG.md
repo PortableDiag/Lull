@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.7 — 2026-09-07
+- **Open from a file manager.** Lull now appears in "Open with" for audio — `audio/*` plus the `application/ogg`/`flac` types some providers still send, over `content://` and `file://`, with a matching extension filter for senders that give a bare uri and no type at all. It also accepts a share (`SEND` / `SEND_MULTIPLE`), so a selection can go straight to the player.
+- Opening **one** track offers its **whole folder**, so Next pages through it. Three routes in order: the `ClipData` the launching app attached (Sift does this — no permission needed, and the only route that works for a `.nomedia` folder), then the folder resolved out of Lull's own library, then the single file. Resolving the folder handles a file manager's private `FileProvider` uri by reading the real path off the open descriptor (`/proc/self/fd/N`), which answers neither a MediaStore id nor a `DATA` column.
+- **A launch from another app never waits on media permission.** Without it there is nothing to load, so the intent's own read grant carries the playback; with it, the library load is awaited first so the folder can be built.
+- **Folder, Artist, Album and Genre views**, alongside the flat track list and playlists — six tabs, each a list you drill into and Back out of. The tab and the folder/artist/album/genre/playlist you were on are both remembered.
+- Genre comes from MediaStore's genre membership tables rather than the `GENRE` column, which only exists from API 30; it is one query per genre, once per load, off the main thread.
+- **Multi-selection.** Long-press any row to start it, tap to add more. Play the selection, add it to the queue, add it to a playlist, remove it from the one you are in, or select all. It works on **groups** too — long-press an album or a folder and everything in it comes with it. Selection is held by track id, so it survives a search keystroke or a playlist edit.
+- **A real playlist manager.** Playlists are their own tab, with a per-row menu — play, rename, **duplicate**, delete — and a button to make a new one. Adding a selection is one write for the whole batch rather than one per track.
+- The selection bar now **overlays** the toolbar instead of stacking above it, which used to push the whole list down the moment a selection started.
+
 ## 1.6 — 2026-08-03
 - **Sleep timer**: play for 5–90 minutes, fade out over the last 30 seconds, then pause. Set it from the moon button on Now Playing or from the overflow menu; while it runs, the Now Playing title bar counts it down and the overflow entry shows the time left. The countdown lives in `PlaybackService`, so it keeps running with the app closed and the screen off, and it is measured against `elapsedRealtime` so it counts through device sleep rather than stopping with the CPU.
 - The fade follows a **raised cosine**, which is flat at both ends — it eases in without an audible step and settles onto silence instead of arriving at it mid-drop. On a short timer the fade is capped at half the total, so a 1-minute timer doesn't spend 30 seconds fading.

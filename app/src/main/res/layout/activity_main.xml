@@ -19,6 +19,16 @@
             android:layout_height="?attr/actionBarSize"
             app:title="@string/app_name"
             app:titleTextAppearance="@style/TextAppearance.Material3.HeadlineSmall" />
+
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/tabs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@android:color/transparent"
+            app:tabMode="scrollable"
+            app:tabGravity="start"
+            app:tabIndicatorFullWidth="false"
+            app:tabTextAppearance="@style/TextAppearance.Material3.LabelLarge" />
     </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.recyclerview.widget.RecyclerView
@@ -83,6 +93,16 @@
             android:layout_marginTop="24dp" android:paddingHorizontal="28dp"
             android:text="@string/grant_access" app:cornerRadius="24dp" />
     </LinearLayout>
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/newPlaylistFab"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:visibility="gone"
+        android:src="@drawable/ic_add"
+        android:contentDescription="@string/new_playlist" />
 
     <!-- Mini player -->
     <com.google.android.material.card.MaterialCardView

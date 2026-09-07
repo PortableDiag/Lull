@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Row background: tinted while the row is part of a multi-selection, transparent otherwise.
+     The ripple stays on the view's foreground so a selected row still responds to a tap. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_activated="true">
+        <color android:color="?attr/colorSecondaryContainer" />
+    </item>
+    <item>
+        <color android:color="@android:color/transparent" />
+    </item>
+</selector>
