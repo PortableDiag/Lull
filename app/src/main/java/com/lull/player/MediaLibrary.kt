@@ -44,8 +44,13 @@ object MediaLibrary {
             }
         }.toTypedArray()
 
-        // Only real music: MediaStore also indexes ringtones, alarms and notification blips.
-        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 OR ${MediaStore.Audio.Media.IS_PODCAST} != 0"
+        // Exclude only the system's own noises. Filtering on IS_MUSIC instead would be the
+        // obvious thing and is wrong: an audiobook has IS_MUSIC = 0, and on a device that is
+        // mostly spoken word that hides most of the library. Ringtones, alarms and notification
+        // blips are what nobody wants in a player; everything else belongs here.
+        val selection = "${MediaStore.Audio.Media.IS_RINGTONE} = 0" +
+            " AND ${MediaStore.Audio.Media.IS_ALARM} = 0" +
+            " AND ${MediaStore.Audio.Media.IS_NOTIFICATION} = 0"
         val sort = "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC"
 
         val genres = genresByTrackId(context)

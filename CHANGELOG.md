@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.7.1 — 2026-09-07
+- **Audiobooks are back in the library.** 1.7 narrowed the MediaStore query to `IS_MUSIC` (plus podcasts), and an audiobook has `IS_MUSIC = 0` — so on a device that is mostly spoken word most of the library disappeared. The query now excludes only what nobody wants in a player: ringtones, alarms and notification sounds. Everything else — music, podcasts, audiobooks, recordings — is listed, as it was before 1.7.
+
 ## 1.7 — 2026-09-07
 - **Open from a file manager.** Lull now appears in "Open with" for audio — `audio/*` plus the `application/ogg`/`flac` types some providers still send, over `content://` and `file://`, with a matching extension filter for senders that give a bare uri and no type at all. It also accepts a share (`SEND` / `SEND_MULTIPLE`), so a selection can go straight to the player.
 - Opening **one** track offers its **whole folder**, so Next pages through it. Three routes in order: the `ClipData` the launching app attached (Sift does this — no permission needed, and the only route that works for a `.nomedia` folder), then the folder resolved out of Lull's own library, then the single file. Resolving the folder handles a file manager's private `FileProvider` uri by reading the real path off the open descriptor (`/proc/self/fd/N`), which answers neither a MediaStore id nor a `DATA` column.
