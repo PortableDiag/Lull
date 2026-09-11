@@ -18,6 +18,11 @@
         android:title="@string/selection_queue"
         app:showAsAction="ifRoom" />
     <item
+        android:id="@+id/sel_rate"
+        android:icon="@drawable/ic_star"
+        android:title="@string/selection_rate"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/sel_select_all"
         android:icon="@drawable/ic_select_all"
         android:title="@string/select_all"

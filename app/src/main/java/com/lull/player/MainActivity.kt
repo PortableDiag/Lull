@@ -24,7 +24,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.lifecycleScope
-import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -78,6 +77,11 @@ class MainActivity : AppCompatActivity() {
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var controller: MediaController? = null
 
+    private companion object {
+        /** No particular track was asked for — play the collection from its own start. */
+        const val NO_START = -1
+    }
+
     private val permission: String
         get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
             Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
@@ -92,6 +96,12 @@ class MainActivity : AppCompatActivity() {
 
     private val playerListener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) { bindMini() }
+    }
+
+    /** Now Playing can rate the track we are listing, so mirror the store rather than our copy. */
+    private val ratingListener: () -> Unit = {
+        refresh()
+        trackAdapter.notifyRatingsChanged()
     }
 
     // ---------------- Lifecycle ----------------
@@ -164,11 +174,13 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         connectController()
+        RatingStore.addListener(ratingListener)
         if (hasPermission()) loadTracks() else showPermissionPrompt()
     }
 
     override fun onStop() {
         super.onStop()
+        RatingStore.removeListener(ratingListener)
         controller?.removeListener(playerListener)
         controllerFuture?.let { MediaController.releaseFuture(it) }
         controller = null
@@ -230,7 +242,8 @@ class MainActivity : AppCompatActivity() {
     private fun buildTabs() {
         val labels = listOf(
             R.string.tab_tracks, R.string.tab_folders, R.string.tab_artists,
-            R.string.tab_albums, R.string.tab_genres, R.string.tab_playlists
+            R.string.tab_albums, R.string.tab_genres, R.string.tab_playlists,
+            R.string.tab_rated
         )
         LibraryTab.values().forEachIndexed { i, _ ->
             binding.tabs.addTab(binding.tabs.newTab().setText(labels[i]))
@@ -261,6 +274,7 @@ class MainActivity : AppCompatActivity() {
         LibraryTab.ALBUMS -> R.drawable.ic_album
         LibraryTab.GENRES -> R.drawable.ic_genre
         LibraryTab.PLAYLISTS -> R.drawable.ic_queue
+        LibraryTab.RATED -> R.drawable.ic_star
         LibraryTab.TRACKS -> R.drawable.ic_music_note
     }
 
@@ -298,7 +312,8 @@ class MainActivity : AppCompatActivity() {
         unknownArtist = getString(R.string.unknown_artist),
         unknownGenre = getString(R.string.unknown_genre),
         unknownAlbum = getString(R.string.unknown_album),
-        trackCount = { n -> if (n == 1) getString(R.string.track_count_one) else getString(R.string.track_count, n) }
+        trackCount = { n -> if (n == 1) getString(R.string.track_count_one) else getString(R.string.track_count, n) },
+        ratingOf = { id -> RatingStore.of(this, id) }
     )
 
     /** True while the list is showing tracks rather than groups. */
@@ -364,6 +379,7 @@ class MainActivity : AppCompatActivity() {
                 tab == LibraryTab.ALBUMS -> R.string.no_albums
                 tab == LibraryTab.GENRES -> R.string.no_genres
                 tab == LibraryTab.PLAYLISTS -> R.string.no_playlists
+                tab == LibraryTab.RATED -> R.string.no_rated
                 else -> R.string.no_audio
             }
         )
@@ -463,6 +479,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.sel_play -> { playTracks(tracks); mode.finish() }
                 R.id.sel_queue -> { queueTracks(tracks); mode.finish() }
                 R.id.sel_add_playlist -> showAddToPlaylist(tracks) { mode.finish() }
+                R.id.sel_rate -> showRatingDialog(tracks) { mode.finish() }
                 R.id.sel_select_all -> {
                     if (showingTracks()) trackAdapter.selectAll() else groupAdapter.selectAll()
                     onSelectionChanged()
@@ -495,26 +512,42 @@ class MainActivity : AppCompatActivity() {
     // ---------------- Playback ----------------
 
     private fun playAt(position: Int) {
-        val c = controller ?: return
         if (position !in shownTracks.indices) return
         if (hasPermission()) maybeRequestNotifications()
-        val items: List<MediaItem> = shownTracks.map { it.toMediaItem() }
-        // Start a new session honouring the user's saved repeat/shuffle preference, so if you
-        // left it on "repeat one" for white-noise it comes back that way.
-        c.shuffleModeEnabled = Prefs.shuffle(this)
-        c.repeatMode = Prefs.repeatMode(this)
-        c.setMediaItems(items, position, 0L)
-        c.prepare()
-        c.play()
-        bindMini()
+        startQueue(shownTracks, position)
     }
 
-    private fun playTracks(tracks: List<AudioItem>) {
+    private fun playTracks(tracks: List<AudioItem>) = startQueue(tracks, NO_START)
+
+    /**
+     * Starts a new session on [tracks], honouring the saved repeat and shuffle settings — so a
+     * white-noise loop left on "repeat one" comes back that way.
+     *
+     * [startIndex] is the track the user actually tapped, or [NO_START] when they asked for a whole
+     * collection. Under Favourites shuffle a tapped track still plays *first* — tapping a row is a
+     * request to hear that row, the same call already made for an external open — and the rest of
+     * the list queues behind it in weighted order. Plain shuffle stays the player's own flag.
+     */
+    private fun startQueue(tracks: List<AudioItem>, startIndex: Int) {
         val c = controller ?: return
         if (tracks.isEmpty()) return
-        c.shuffleModeEnabled = Prefs.shuffle(this)
+
+        val mode = Prefs.shuffleMode(this)
+        var items = tracks
+        var index = startIndex.coerceIn(0, tracks.size - 1)
+
+        if (mode == Prefs.SHUFFLE_FAVOURITES) {
+            val first = tracks.getOrNull(startIndex)
+            val rest = Shuffle.weighted(
+                if (first == null) tracks else tracks.filterNot { it.id == first.id }
+            ) { RatingStore.of(this, it.id) }
+            items = if (first == null) rest else listOf(first) + rest
+            index = 0
+        }
+
+        c.shuffleModeEnabled = mode == Prefs.SHUFFLE_ALL
         c.repeatMode = Prefs.repeatMode(this)
-        c.setMediaItems(tracks.map { it.toMediaItem() }, 0, 0L)
+        c.setMediaItems(items.map { it.toMediaItem() }, index, 0L)
         c.prepare()
         c.play()
         bindMini()
@@ -557,6 +590,38 @@ class MainActivity : AppCompatActivity() {
         } else {
             binding.miniArt.setImageResource(R.drawable.bg_art_placeholder)
         }
+    }
+
+    // ---------------- Ratings ----------------
+
+    /**
+     * Rates a whole selection at once. The dialog pre-selects the rating they already share, so
+     * re-rating a handful of tracks starts from where they are rather than from nothing.
+     */
+    private fun showRatingDialog(tracks: List<AudioItem>, onDone: () -> Unit = {}) {
+        if (tracks.isEmpty()) { toast(getString(R.string.nothing_selected)); return }
+        val labels = (RatingStore.MAX downTo RatingStore.UNRATED).map { stars ->
+            if (stars == RatingStore.UNRATED) getString(R.string.rating_unrated)
+            else RatingStore.glyphs(stars)
+        }
+        val shared = tracks.map { RatingStore.of(this, it.id) }.distinct().singleOrNull()
+        val checked = if (shared == null) -1 else RatingStore.MAX - shared
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.rate_track)
+            .setSingleChoiceItems(labels.toTypedArray(), checked) { d, which ->
+                d.dismiss()
+                val stars = RatingStore.MAX - which
+                RatingStore.setAll(this, tracks.map { it.id }, stars)
+                toast(
+                    if (stars == RatingStore.UNRATED)
+                        getString(R.string.rating_cleared_count, tracks.size)
+                    else getString(R.string.rated_count, tracks.size, RatingStore.glyphs(stars))
+                )
+                onDone()
+            }
+            .setNegativeButton(android.R.string.cancel) { _, _ -> onDone() }
+            .show()
     }
 
     private fun openNowPlaying() {

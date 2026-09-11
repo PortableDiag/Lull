@@ -38,4 +38,14 @@
         <item name="android:focusable">true</item>
         <item name="android:maxLines">1</item>
     </style>
+
+    <!-- One tappable star on the Now Playing rating row. Tint is set in code, per state. -->
+    <style name="RatingStar">
+        <item name="android:layout_width">40dp</item>
+        <item name="android:layout_height">40dp</item>
+        <item name="android:padding">7dp</item>
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="android:src">@drawable/ic_star_border</item>
+        <item name="android:scaleType">fitCenter</item>
+    </style>
 </resources>

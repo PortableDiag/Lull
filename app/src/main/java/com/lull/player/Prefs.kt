@@ -7,6 +7,7 @@ import androidx.media3.common.Player
 object Prefs {
     private const val KEY_REPEAT = "repeat_mode"
     private const val KEY_SHUFFLE = "shuffle"
+    private const val KEY_SHUFFLE_MODE = "shuffle_mode"
     private const val KEY_VOL_STYLE = "volume_style"
     private const val KEY_CROSSFADE = "crossfade_sec"
     private const val KEY_SLEEP_MINUTES = "sleep_minutes"
@@ -25,6 +26,11 @@ object Prefs {
     const val VOL_BAR = 0
     const val VOL_KNOB = 1
 
+    /** The three states of the shuffle button, in the order it cycles through them. */
+    const val SHUFFLE_OFF = 0
+    const val SHUFFLE_ALL = 1
+    const val SHUFFLE_FAVOURITES = 2
+
     private fun sp(context: Context) =
         context.getSharedPreferences(ThemeManager.PREFS, Context.MODE_PRIVATE)
 
@@ -34,11 +40,28 @@ object Prefs {
     fun setRepeatMode(context: Context, mode: Int) =
         sp(context).edit().putInt(KEY_REPEAT, mode).apply()
 
-    fun shuffle(context: Context): Boolean =
-        sp(context).getBoolean(KEY_SHUFFLE, false)
+    /**
+     * Off, plain shuffle, or Favourites shuffle — see [Shuffle] for what the third one means.
+     *
+     * Falls back to the boolean this was before 1.8 when the new key has never been written, so an
+     * upgrade keeps the shuffle setting it was left on.
+     */
+    fun shuffleMode(context: Context): Int {
+        val sp = sp(context)
+        if (!sp.contains(KEY_SHUFFLE_MODE)) {
+            return if (sp.getBoolean(KEY_SHUFFLE, false)) SHUFFLE_ALL else SHUFFLE_OFF
+        }
+        return sp.getInt(KEY_SHUFFLE_MODE, SHUFFLE_OFF).coerceIn(SHUFFLE_OFF, SHUFFLE_FAVOURITES)
+    }
 
-    fun setShuffle(context: Context, on: Boolean) =
-        sp(context).edit().putBoolean(KEY_SHUFFLE, on).apply()
+    fun setShuffleMode(context: Context, mode: Int) {
+        val value = mode.coerceIn(SHUFFLE_OFF, SHUFFLE_FAVOURITES)
+        sp(context).edit()
+            .putInt(KEY_SHUFFLE_MODE, value)
+            // Kept in step so a downgrade to 1.7 still finds a sane setting.
+            .putBoolean(KEY_SHUFFLE, value != SHUFFLE_OFF)
+            .apply()
+    }
 
     fun volumeStyle(context: Context): Int =
         sp(context).getInt(KEY_VOL_STYLE, VOL_BAR)

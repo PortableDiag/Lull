@@ -54,12 +54,12 @@ Route 2's path resolution is the awkward part: a file manager typically hands ov
 **A launch from another app never waits on media permission.** Without it there is nothing to load and the intent's own grant carries the playback; with it, the library load is awaited first so the folder can be built.
 
 ### Browsing: folders, artists, albums, genres
-The flat list of every track is fine for a phone holding a dozen files and useless for one holding thousands, so the same library is offered **six ways**: Tracks, Folders, Artists, Albums, Genres and Playlists. Each grouped tab is a list you drill into and Back out of; re-tapping the current tab also comes back out. **The tab and the group you were on are both remembered.**
+The flat list of every track is fine for a phone holding a dozen files and useless for one holding thousands, so the same library is offered **seven ways**: Tracks, Folders, Artists, Albums, Genres, Playlists and Rated. Each grouped tab is a list you drill into and Back out of; re-tapping the current tab also comes back out. **The tab and the group you were on are both remembered.**
 
 Genre is read from MediaStore's **genre membership tables** rather than the `GENRE` column on a track, which only exists from API 30. That is one query per genre — tens, not thousands — run once per load on the IO dispatcher.
 
 ### Multi-selection
-**Long-press any row to start selecting**, then tap to add more. The contextual bar offers **play**, **add to queue**, **add to playlist**, **remove from this playlist**, and **select all**.
+**Long-press any row to start selecting**, then tap to add more. The contextual bar offers **play**, **add to queue**, **add to playlist**, **rate**, **remove from this playlist**, and **select all**.
 
 It works on **groups** as well as tracks: long-press an album, folder or genre and everything inside it comes with the selection, without opening it first. Selection is held by **track id rather than row position**, so it survives a search keystroke or a playlist edit — positions would not. The reorder handles hide while a selection is running, because dragging and selecting are otherwise two gestures fighting over the same row.
 
@@ -68,6 +68,30 @@ It works on **groups** as well as tracks: long-press an album, folder or genre a
 - **Drag to reorder** with the handle on the right of a row (shown only in a playlist view with no active search, where row position maps 1:1 to stored order); the order is saved when you drop it.
 - **Opens where you left off** — the library reopens on the last collection you viewed (All tracks or a specific playlist), falling back to All tracks if that playlist was deleted.
 - Playlists are stored as lists of MediaStore ids in `SharedPreferences`, so they cost almost nothing and survive files moving; a track that has since been deleted is **skipped** when the playlist is shown, not pruned, so it returns if the file (or SD card) reappears.
+
+### Ratings, and a shuffle that leans on them
+Rate a track **1–5 stars** and the shuffle will take the hint.
+
+- **Set a rating** from the star row on Now Playing — tapping the star it already sits on clears the rating, which is the only thing that would otherwise undo it. Or long-press in the library and **rate a whole selection at once** from the contextual bar; that dialog starts on the rating the selection already shares.
+- **See them** as a compact star strip on each library row, and browse them on the **Rated** tab — five stars down to one, best group first. There is deliberately **no "unrated" bucket**: on any real library it would hold nearly everything and simply be a second copy of the Tracks tab.
+- Ratings are stored as a map of MediaStore ids in `SharedPreferences`, exactly like playlists. Nothing is written to the audio file — no tag rewriting, so a rating can't corrupt a track or change its checksum — and a rating survives the file moving. MediaStore has no writable rating column for audio, so this is Lull's own store either way.
+
+**Favourites shuffle** is the third state of the shuffle button (off → shuffle → favourites), and the point of the ratings: **3 stars and up come around early and often.**
+
+| Rating | Relative chance of landing early |
+|---|---|
+| ★★★★★ | 40 |
+| ★★★★ | 24 |
+| ★★★ | 12 |
+| *unrated* | 3 |
+| ★★ | 2 |
+| ★ | 1 |
+
+The step between 2 and 3 stars is the whole design: three stars is the lowest rating that still means "yes", so that is where the weight jumps rather than creeps. An explicit **1 star is rarer than no rating at all** — a low rating is a judgement, while no rating is just silence.
+
+It is a **reordering, not a filter**. Every track you asked for is still in the queue, so Next eventually reaches all of it and repeat-all still wraps the whole thing; the favourites simply come up first. Tapping a specific track still plays **that** track first and weights the rest behind it — tapping a row is a request to hear that row, the same call Lull already makes for a file opened from a file manager.
+
+Media3's own `shuffleModeEnabled` is an unweighted permutation with nothing to bias, so this had to be Lull's own ordering: it builds the queue itself (a one-pass [Efraimidis–Spirakis](https://doi.org/10.1016/j.ipl.2005.11.003) weighted draw) and hands the player a plain queue with shuffle switched off. Switching it on **mid-queue** re-weights only what has not played yet, leaving the current track alone — which also means switching it back off cannot unscramble it, because the order it replaced is gone.
 
 ### A-B loop
 - Mark **A** and **B** in a track and loop the region between them, driven from the service so it survives closing the UI. Re-reads the real playback position each pass, so seeking or pausing inside the region doesn't desync it.
@@ -97,7 +121,7 @@ Everything persistent is in the **overflow menu** on the library screen, and is 
 | **Trim silence** | Checkbox | Off |
 | **Mix with other audio** | Checkbox | On |
 
-Repeat, shuffle and the volume bar/knob choice are set on the **Now Playing** screen; the **A-B loop** buttons and the **sleep timer** (moon) are there too. The sleep timer is the one entry that isn't a persistent setting — a running countdown is intentionally dropped on restart, and only the duration you last picked is remembered.
+Repeat, shuffle (off / shuffle / **favourites**) and the volume bar/knob choice are set on the **Now Playing** screen, along with the **star rating** for the playing track; the **A-B loop** buttons and the **sleep timer** (moon) are there too. The sleep timer is the one entry that isn't a persistent setting — a running countdown is intentionally dropped on restart, and only the duration you last picked is remembered.
 
 None of the three playback settings can be pushed through a `MediaController`: crossfade is Lull's own concept rather than a Media3 one, and skip-silence and audio-focus handling live on `ExoPlayer` and not on the `Player` interface a controller talks to. So all three are written to `SharedPreferences` and picked up by `PlaybackService` through an `OnSharedPreferenceChangeListener`, which is what lets them take effect on the *live* player without restarting playback.
 
@@ -142,6 +166,14 @@ It also reports the four seek commands as always‑available so the buttons stay
 - JDK 17, Android SDK **platform 35** + **build‑tools 34.0.0**
 - `local.properties` with `sdk.dir=/path/to/Android/Sdk`
 
+### Tests
+`Shuffle` makes a claim about probability, which one run can neither confirm nor refute, so it has
+unit tests that check the distribution over thousands of draws from a fixed seed:
+
+```bash
+./gradlew testDebugUnitTest
+```
+
 ### Debug (no signing needed)
 ```bash
 ./gradlew assembleDebug
@@ -178,11 +210,13 @@ app/src/main/java/com/lull/player/
 ├── SleepTimer.kt          # sleep-timer deadline + fade gain, shared the same way
 ├── SleepTimerDialog.kt    # the duration picker, shared by both screens
 ├── PlaylistStore.kt       # playlists (create/rename/delete/add/remove/reorder) + last-viewed collection
+├── RatingStore.kt         # 1-5 star ratings by track id, with an in-memory cache
+├── Shuffle.kt             # the weighted draw behind Favourites shuffle
 ├── VolumeKnobView.kt      # custom circular volume knob
 ├── ArtLoader.kt           # async artwork loading + LRU cache
 ├── TrackAdapter.kt        # RecyclerView list adapter
 ├── AudioItem.kt           # audio model + MediaItem mapping
-├── Prefs.kt               # repeat, shuffle, volume style, crossfade, mix-audio, trim-silence
+├── Prefs.kt               # repeat, shuffle mode, volume style, crossfade, mix-audio, trim-silence
 └── ThemeManager.kt        # light/dark/system theme
 ```
 

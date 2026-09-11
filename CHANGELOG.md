@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.8 — 2026-09-11
+- **Star ratings.** Rate a track 1–5 from the star row on Now Playing (tapping the star it already sits on clears it), or long-press in the library and rate a whole selection at once. Rated tracks show a compact star strip on their row.
+- **A Rated tab**, alongside the other six: five stars down to one, best first. No "unrated" bucket — on a real library it would hold nearly everything and be a second copy of the Tracks tab.
+- **Favourites shuffle**, the new third state of the shuffle button (off → shuffle → favourites): **3 stars and up come around early and often**. The weight jumps at three stars rather than creeping, because three is the lowest rating that still means "yes"; an explicit 1 star is rarer than no rating at all, since a low rating is a judgement and no rating is just silence.
+- It is a reordering, not a filter — every track you asked for is still in the queue, so Next reaches all of it eventually. Tapping a specific track still plays that track first and weights the rest behind it. Switching it on mid-queue re-weights only what has not played yet and leaves the playing track alone; switching it back off therefore cannot unscramble it.
+- Ratings are a map of MediaStore ids in `SharedPreferences`, like playlists: nothing is written to the audio file, and a rating survives the file moving. (MediaStore has no writable rating column for audio.)
+- Internal: Media3's `shuffleModeEnabled` is an unweighted permutation with no hook to bias it, so Favourites shuffle builds the queue itself — a one-pass Efraimidis–Spirakis weighted draw — and hands the player a plain queue with shuffle off. `PlaybackService` needed no changes at all.
+- The project gains its first unit tests (`./gradlew testDebugUnitTest`), because "higher rated tracks come up first" is a claim about a distribution and one run can neither confirm nor refute it. They caught a real bug before release: drawing the sort key inside `sortedBy` re-randomises it on every comparison, which is an inconsistent comparator — harmless on a short queue, and `IllegalArgumentException: Comparison method violates its general contract!` on a library big enough for TimSort to merge runs.
+
 ## 1.7.1 — 2026-09-07
 - **Audiobooks are back in the library.** 1.7 narrowed the MediaStore query to `IS_MUSIC` (plus podcasts), and an audiobook has `IS_MUSIC = 0` — so on a device that is mostly spoken word most of the library disappeared. The query now excludes only what nobody wants in a player: ringtones, alarms and notification sounds. Everything else — music, podcasts, audiobooks, recordings — is listed, as it was before 1.7.
 

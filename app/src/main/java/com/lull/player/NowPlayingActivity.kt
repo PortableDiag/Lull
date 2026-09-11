@@ -42,6 +42,14 @@ class NowPlayingActivity : AppCompatActivity() {
     /** The service clears the timer when it fires, so mirror its state rather than ours. */
     private val sleepListener: () -> Unit = { renderSleep() }
 
+    /** The library can rate the playing track from its selection bar, so mirror the store. */
+    private val ratingListener: () -> Unit = { renderRating() }
+
+    /** The five stars, low to high, so the index is one less than the rating it sets. */
+    private val stars by lazy {
+        listOf(binding.star1, binding.star2, binding.star3, binding.star4, binding.star5)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         ThemeManager.applySaved(this)
         super.onCreate(savedInstanceState)
@@ -58,11 +66,12 @@ class NowPlayingActivity : AppCompatActivity() {
         binding.btnNext.setOnClickListener { controller?.seekToNext() }
         binding.btnPrev.setOnClickListener { controller?.seekToPrevious() }
         binding.btnRepeat.setOnClickListener { cycleRepeat() }
-        binding.btnShuffle.setOnClickListener { toggleShuffle() }
+        binding.btnShuffle.setOnClickListener { cycleShuffle() }
 
         setupSeek()
         setupAbLoop()
         setupVolume()
+        setupRating()
 
         binding.volumeKnob.setColors(
             themeColor(com.google.android.material.R.attr.colorPrimary),
@@ -87,8 +96,10 @@ class NowPlayingActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
         AbLoop.addListener(abListener)
         SleepTimer.addListener(sleepListener)
+        RatingStore.addListener(ratingListener)
         renderAb()
         renderSleep()
+        renderRating()
         handler.post(ticker)
     }
 
@@ -97,6 +108,7 @@ class NowPlayingActivity : AppCompatActivity() {
         handler.removeCallbacks(ticker)
         AbLoop.removeListener(abListener)
         SleepTimer.removeListener(sleepListener)
+        RatingStore.removeListener(ratingListener)
         controller?.removeListener(playerListener)
         controllerFuture?.let { MediaController.releaseFuture(it) }
         controller = null
@@ -107,7 +119,7 @@ class NowPlayingActivity : AppCompatActivity() {
     private fun render() {
         val c = controller
         val item: MediaItem? = c?.currentMediaItem
-        if (c == null || item == null) { finishIfEmpty(); renderAb(); return }
+        if (c == null || item == null) { finishIfEmpty(); renderAb(); renderRating(); return }
 
         val md = item.mediaMetadata
         binding.title.text = md.title ?: ""
@@ -123,9 +135,23 @@ class NowPlayingActivity : AppCompatActivity() {
             Player.REPEAT_MODE_ALL -> { binding.btnRepeat.setImageResource(R.drawable.ic_repeat); binding.btnRepeat.setColorFilter(primary) }
             else -> { binding.btnRepeat.setImageResource(R.drawable.ic_repeat); binding.btnRepeat.setColorFilter(onVariant) }
         }
-        binding.btnShuffle.setColorFilter(if (c.shuffleModeEnabled) primary else onVariant)
+        when (Prefs.shuffleMode(this)) {
+            Prefs.SHUFFLE_ALL -> {
+                binding.btnShuffle.setImageResource(R.drawable.ic_shuffle)
+                binding.btnShuffle.setColorFilter(primary)
+            }
+            Prefs.SHUFFLE_FAVOURITES -> {
+                binding.btnShuffle.setImageResource(R.drawable.ic_shuffle_star)
+                binding.btnShuffle.setColorFilter(primary)
+            }
+            else -> {
+                binding.btnShuffle.setImageResource(R.drawable.ic_shuffle)
+                binding.btnShuffle.setColorFilter(onVariant)
+            }
+        }
 
         renderAb()
+        renderRating()
         loadArt(item.mediaId)
     }
 
@@ -291,12 +317,76 @@ class NowPlayingActivity : AppCompatActivity() {
         render()
     }
 
-    private fun toggleShuffle() {
+    /** Off -> shuffle -> Favourites shuffle, the way the repeat button cycles its three states. */
+    private fun cycleShuffle() {
         val c = controller ?: return
-        c.shuffleModeEnabled = !c.shuffleModeEnabled
-        Prefs.setShuffle(this, c.shuffleModeEnabled)
-        toast(getString(if (c.shuffleModeEnabled) R.string.shuffle_on else R.string.shuffle_off))
+        val next = (Prefs.shuffleMode(this) + 1) % 3
+        Prefs.setShuffleMode(this, next)
+        when (next) {
+            Prefs.SHUFFLE_ALL -> c.shuffleModeEnabled = true
+            Prefs.SHUFFLE_FAVOURITES -> {
+                c.shuffleModeEnabled = false
+                reorderUpcomingByRating(c)
+            }
+            else -> c.shuffleModeEnabled = false
+        }
+        toast(getString(when (next) {
+            Prefs.SHUFFLE_ALL -> R.string.shuffle_on
+            Prefs.SHUFFLE_FAVOURITES -> R.string.shuffle_favourites_msg
+            else -> R.string.shuffle_off
+        }))
         render()
+    }
+
+    /**
+     * Re-weights what is still to come, leaving the playing track where it is.
+     *
+     * Favourites shuffle is an *order*, not a player flag — Media3's shuffle is an unweighted
+     * permutation with nothing to bias — so switching it on has to rewrite the queue in place.
+     * The flip side is that switching it back off cannot unscramble it: the order it replaced is
+     * gone. That is why it reorders only what has not played yet.
+     */
+    private fun reorderUpcomingByRating(c: MediaController) {
+        val count = c.mediaItemCount
+        val from = c.currentMediaItemIndex + 1
+        if (count - from < 2) return
+        val upcoming = (from until count).map { c.getMediaItemAt(it) }
+        val ordered = Shuffle.weighted(upcoming) {
+            RatingStore.of(this, it.mediaId.toLongOrNull() ?: -1L)
+        }
+        c.removeMediaItems(from, count)
+        c.addMediaItems(ordered)
+    }
+
+    // ---------------- Rating ----------------
+
+    private fun setupRating() {
+        stars.forEachIndexed { i, button -> button.setOnClickListener { rateCurrent(i + 1) } }
+    }
+
+    /** Tapping the star a track already sits on clears the rating — nothing else would undo it. */
+    private fun rateCurrent(value: Int) {
+        val id = controller?.currentMediaItem?.mediaId?.toLongOrNull() ?: return
+        val next = if (RatingStore.of(this, id) == value) RatingStore.UNRATED else value
+        RatingStore.set(this, id, next)
+        toast(
+            if (next == RatingStore.UNRATED) getString(R.string.rating_cleared)
+            else getString(R.string.rated_msg, RatingStore.glyphs(next))
+        )
+    }
+
+    private fun renderRating() {
+        val id = controller?.currentMediaItem?.mediaId?.toLongOrNull()
+        val rating = if (id == null) RatingStore.UNRATED else RatingStore.of(this, id)
+        val primary = themeColor(com.google.android.material.R.attr.colorPrimary)
+        val onVariant = themeColor(com.google.android.material.R.attr.colorOnSurfaceVariant)
+        stars.forEachIndexed { i, button ->
+            val filled = i < rating
+            button.setImageResource(if (filled) R.drawable.ic_star else R.drawable.ic_star_border)
+            button.setColorFilter(if (filled) primary else onVariant)
+            button.contentDescription = getString(R.string.rating_star_desc, i + 1)
+        }
+        binding.ratingRow.visibility = if (id == null) View.GONE else View.VISIBLE
     }
 
     // ---------------- Volume ----------------

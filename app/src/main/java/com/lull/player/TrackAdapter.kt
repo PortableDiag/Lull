@@ -92,6 +92,7 @@ class TrackAdapter(
         val equalizer: ImageView = view.findViewById(R.id.playingMark)
         val title: TextView = view.findViewById(R.id.title)
         val subtitle: TextView = view.findViewById(R.id.subtitle)
+        val rating: TextView = view.findViewById(R.id.rating)
         val duration: TextView = view.findViewById(R.id.duration)
         val dragHandle: ImageView = view.findViewById(R.id.dragHandle)
         var job: Job? = null
@@ -110,6 +111,11 @@ class TrackAdapter(
         holder.title.text = item.title
         holder.subtitle.text = item.artist.ifBlank { holder.itemView.context.getString(R.string.unknown_artist) }
         holder.duration.text = formatDuration(item.durationMs)
+
+        val stars = RatingStore.of(holder.itemView.context, item.id)
+        holder.rating.text = RatingStore.glyphs(stars)
+        holder.rating.visibility = if (stars == RatingStore.UNRATED) View.GONE else View.VISIBLE
+
         holder.equalizer.visibility =
             if (item.id == nowPlayingId && !selected) View.VISIBLE else View.GONE
         holder.itemView.isActivated = selected
@@ -140,6 +146,14 @@ class TrackAdapter(
             }
         }
     }
+
+    /**
+     * Redraws the star strips after a rating changed.
+     *
+     * A rating lives in [RatingStore], not on [AudioItem], so the list itself is unchanged and
+     * DiffUtil would rebind nothing at all — the rows have to be told.
+     */
+    fun notifyRatingsChanged() = notifyDataSetChanged()
 
     /** Reflects a drag reorder in the list. Called for each single-step move by ItemTouchHelper. */
     fun moveItem(from: Int, to: Int) {

@@ -2,7 +2,7 @@ package com.lull.player
 
 /**
  * The library's browse axes. A flat list of every track is fine for a phone holding a dozen files
- * and useless for one holding thousands, so the same library is offered grouped four ways as well.
+ * and useless for one holding thousands, so the same library is offered grouped six ways as well.
  *
  * Each tab is a list of [Group]s you drill into; [LibraryTab.TRACKS] is the one that has no groups
  * and shows the tracks straight away.
@@ -13,7 +13,8 @@ enum class LibraryTab(val prefix: String) {
     ARTISTS("artist"),
     ALBUMS("album"),
     GENRES("genre"),
-    PLAYLISTS("pl");
+    PLAYLISTS("pl"),
+    RATED("rating");
 
     companion object {
         /** The tab a stored collection key belongs to, e.g. `artist:Boards of Canada`. */
@@ -48,7 +49,8 @@ object Browse {
         unknownArtist: String,
         unknownGenre: String,
         unknownAlbum: String,
-        trackCount: (Int) -> String
+        trackCount: (Int) -> String,
+        ratingOf: (Long) -> Int = { RatingStore.UNRATED }
     ): List<Group> = when (tab) {
         LibraryTab.TRACKS -> emptyList()
 
@@ -108,6 +110,23 @@ object Browse {
                 )
             }
             .sortedWith(byTitle)
+
+        // Five stars down to one, best first. There is deliberately no "unrated" bucket: it would
+        // hold nearly the whole library and be a second copy of the Tracks tab.
+        LibraryTab.RATED -> {
+            val byStars = library.groupBy { ratingOf(it.id) }
+            (RatingStore.MAX downTo 1).mapNotNull { stars ->
+                val tracks = byStars[stars] ?: return@mapNotNull null
+                Group(
+                    key = "${LibraryTab.RATED.prefix}:$stars",
+                    title = RatingStore.glyphs(stars),
+                    subtitle = trackCount(tracks.size),
+                    tracks = tracks.sortedWith(
+                        compareBy({ it.artist.lowercase() }, { it.album.lowercase() }, { it.trackNo })
+                    )
+                )
+            }
+        }
 
         // Playlists keep the order the user dragged them into, so they are never re-sorted.
         LibraryTab.PLAYLISTS -> {

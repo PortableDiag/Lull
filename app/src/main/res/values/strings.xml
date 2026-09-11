@@ -33,6 +33,8 @@
     <string name="shuffle">Shuffle</string>
     <string name="shuffle_on">Shuffle on</string>
     <string name="shuffle_off">Shuffle off</string>
+    <string name="shuffle_favourites">Favourites shuffle</string>
+    <string name="shuffle_favourites_msg">Favourites shuffle — higher rated tracks come up first</string>
 
     <string name="crossfade">Crossfade</string>
     <string name="crossfade_off">Off</string>
@@ -97,6 +99,7 @@
     <string name="tab_albums">Albums</string>
     <string name="tab_genres">Genres</string>
     <string name="tab_playlists">Playlists</string>
+    <string name="tab_rated">Rated</string>
     <string name="unknown_genre">Unknown genre</string>
     <string name="unknown_album">Unknown album</string>
     <string name="track_count">%1$d tracks</string>
@@ -106,6 +109,7 @@
     <string name="no_albums">No albums found.</string>
     <string name="no_genres">Nothing on this device carries a genre tag.</string>
     <string name="no_playlists">No playlists yet.\nTap + to make one, or select tracks and add them.</string>
+    <string name="no_rated">Nothing rated yet.\nTap the stars on Now Playing, or select tracks and rate them.</string>
     <string name="search_groups_hint">Search this view</string>
 
     <!-- Multi-selection -->
@@ -116,6 +120,7 @@
     <string name="selection_queue">Add to queue</string>
     <string name="selection_add_playlist">Add to playlist</string>
     <string name="selection_remove">Remove from playlist</string>
+    <string name="selection_rate">Rate\u2026</string>
     <string name="queued_count">%1$d added to the queue</string>
     <string name="added_count_to_playlist">%1$d added to %2$s</string>
     <string name="added_none_to_playlist">Already in %1$s</string>
@@ -133,4 +138,14 @@
     <!-- Opened from another app -->
     <string name="opened_single">Playing one file — the folder could not be read</string>
     <string name="open_failed">Lull could not open that file</string>
+
+    <!-- Ratings -->
+    <string name="rating">Rating</string>
+    <string name="rate_track">Rate</string>
+    <string name="rating_unrated">Unrated</string>
+    <string name="rating_star_desc">%1$d stars</string>
+    <string name="rated_msg">Rated %1$s</string>
+    <string name="rating_cleared">Rating cleared</string>
+    <string name="rated_count">Rated %2$s (%1$d tracks)</string>
+    <string name="rating_cleared_count">Rating cleared on %1$d tracks</string>
 </resources>

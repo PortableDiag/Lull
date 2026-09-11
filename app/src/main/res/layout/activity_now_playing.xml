@@ -112,7 +112,45 @@
         android:textColor="?attr/colorOnSurfaceVariant"
         android:textSize="14sp"
         android:text=""
-        app:layout_constraintBottom_toTopOf="@id/seekBar" />
+        app:layout_constraintBottom_toTopOf="@id/ratingRow" />
+
+    <!-- Star rating for the playing track. Tapping the star already set clears the rating. -->
+    <LinearLayout
+        android:id="@+id/ratingRow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal"
+        android:gravity="center"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/seekBar">
+
+        <ImageButton
+            android:id="@+id/star1"
+            style="@style/RatingStar"
+            android:contentDescription="@string/rating" />
+
+        <ImageButton
+            android:id="@+id/star2"
+            style="@style/RatingStar"
+            android:contentDescription="@string/rating" />
+
+        <ImageButton
+            android:id="@+id/star3"
+            style="@style/RatingStar"
+            android:contentDescription="@string/rating" />
+
+        <ImageButton
+            android:id="@+id/star4"
+            style="@style/RatingStar"
+            android:contentDescription="@string/rating" />
+
+        <ImageButton
+            android:id="@+id/star5"
+            style="@style/RatingStar"
+            android:contentDescription="@string/rating" />
+    </LinearLayout>
 
     <SeekBar
         android:id="@+id/seekBar"
