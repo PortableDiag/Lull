@@ -13,7 +13,6 @@ import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import java.util.concurrent.TimeUnit
 
 class TrackAdapter(
     private val scope: CoroutineScope,
@@ -75,15 +74,8 @@ class TrackAdapter(
             override fun areContentsTheSame(a: AudioItem, b: AudioItem) = a == b
         }
 
-        fun formatDuration(ms: Long): String {
-            if (ms <= 0) return "0:00"
-            val total = ms / 1000
-            val h = TimeUnit.SECONDS.toHours(total)
-            val m = TimeUnit.SECONDS.toMinutes(total) % 60
-            val s = total % 60
-            return if (h > 0) String.format("%d:%02d:%02d", h, m, s)
-            else String.format("%d:%02d", m, s)
-        }
+        /** Kept here because every call site already reaches for it; the rule lives in [Format]. */
+        fun formatDuration(ms: Long): String = Format.duration(ms)
     }
 
     inner class VH(view: View) : RecyclerView.ViewHolder(view) {

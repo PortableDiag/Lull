@@ -62,6 +62,7 @@ class NowPlayingActivity : AppCompatActivity() {
         binding.btnBack.setOnClickListener { finish() }
         binding.btnTheme.setOnClickListener { showThemeDialog() }
         binding.btnSleep.setOnClickListener { SleepTimerDialog.show(this) }
+        binding.btnShare.setOnClickListener { shareCurrent() }
         binding.btnPlayPause.setOnClickListener { controller?.let { if (it.isPlaying) it.pause() else it.play() } }
         binding.btnNext.setOnClickListener { controller?.seekToNext() }
         binding.btnPrev.setOnClickListener { controller?.seekToPrevious() }
@@ -356,6 +357,24 @@ class NowPlayingActivity : AppCompatActivity() {
         }
         c.removeMediaItems(from, count)
         c.addMediaItems(ordered)
+    }
+
+    // ---------------- Share ----------------
+
+    /**
+     * Sends the playing file itself, with its metadata alongside.
+     *
+     * The facts come off the `MediaItem` the session holds rather than the library, because the
+     * playing track may not be in the library at all — one opened from a file manager is played
+     * straight off the intent's uri.
+     */
+    private fun shareCurrent() {
+        val item = controller?.currentMediaItem
+        if (item == null) { toast(getString(R.string.share_nothing_playing)); return }
+        val intent = Sharing.intentForCurrent(this, item, controller?.duration ?: 0L)
+        if (intent == null) { toast(getString(R.string.share_failed)); return }
+        runCatching { startActivity(intent) }
+            .onFailure { toast(getString(R.string.share_failed)) }
     }
 
     // ---------------- Rating ----------------

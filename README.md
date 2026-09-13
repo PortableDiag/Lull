@@ -59,7 +59,7 @@ The flat list of every track is fine for a phone holding a dozen files and usele
 Genre is read from MediaStore's **genre membership tables** rather than the `GENRE` column on a track, which only exists from API 30. That is one query per genre — tens, not thousands — run once per load on the IO dispatcher.
 
 ### Multi-selection
-**Long-press any row to start selecting**, then tap to add more. The contextual bar offers **play**, **add to queue**, **add to playlist**, **rate**, **remove from this playlist**, and **select all**.
+**Long-press any row to start selecting**, then tap to add more. The contextual bar offers **play**, **add to queue**, **add to playlist**, **rate**, **share**, **remove from this playlist**, and **select all**.
 
 It works on **groups** as well as tracks: long-press an album, folder or genre and everything inside it comes with the selection, without opening it first. Selection is held by **track id rather than row position**, so it survives a search keystroke or a playlist edit — positions would not. The reorder handles hide while a selection is running, because dragging and selecting are otherwise two gestures fighting over the same row.
 
@@ -93,6 +93,69 @@ It is a **reordering, not a filter**. Every track you asked for is still in the 
 
 Media3's own `shuffleModeEnabled` is an unweighted permutation with nothing to bias, so this had to be Lull's own ordering: it builds the queue itself (a one-pass [Efraimidis–Spirakis](https://doi.org/10.1016/j.ipl.2005.11.003) weighted draw) and hands the player a plain queue with shuffle switched off. Switching it on **mid-queue** re-weights only what has not played yet, leaving the current track alone — which also means switching it back off cannot unscramble it, because the order it replaced is gone.
 
+### Sharing a track out
+The counterpart to opening one in. **Share** from the Now Playing top bar sends the playing track;
+long-press in the library and the contextual bar shares a whole selection — including a selection
+made by long-pressing an album, folder or genre.
+
+**The file itself travels, and its metadata travels with it.** `EXTRA_STREAM` carries the audio,
+with a read grant so the receiving app can open it whether or not it holds media permission of its
+own; title, artist, album, genre, duration, size and your own rating are written into the share
+text, because a `content://` uri carries none of that and what arrives otherwise is a filename —
+often a track number and nothing else. Nothing is re-encoded and no tag is rewritten: the file that
+leaves is byte-for-byte the file on disk.
+
+Empty fields are left out rather than written as "Unknown", and the share is typed as precisely as
+the extension allows (`audio/mpeg`, not the wildcard) because some receivers filter on the concrete
+type. A selection of mixed formats falls back to the generic type rather than misdescribe itself.
+
+### The local API
+**Lull can be driven by a script or an agent** — everything you can do with a finger, over HTTP on
+this device. Turn it on under **Local API** in the overflow menu; Lull generates a key, shows the
+address it is listening on, and that is the whole setup.
+
+```bash
+KEY=<copied from the app>          # adb forward tcp:8787 tcp:8787, from a laptop
+curl -s -H "X-API-Key: $KEY" 127.0.0.1:8787/api/docs        # the full reference
+curl -s -H "X-API-Key: $KEY" "127.0.0.1:8787/api/tracks?q=rain"
+curl -s -H "X-API-Key: $KEY" -X POST 127.0.0.1:8787/api/player/play -d '{"group":"album:42"}'
+curl -s -H "X-API-Key: $KEY" -X PATCH 127.0.0.1:8787/api/player -d '{"repeat":"one"}'
+curl -s -H "X-API-Key: $KEY" -X POST 127.0.0.1:8787/api/player/sleep -d '{"minutes":45}'
+```
+
+| | |
+|---|---|
+| **Library** | every track with search and paging, the six browse axes and the tracks in any group, one track's metadata, **its file**, and its artwork |
+| **Playback** | play (ids, a group, or resume), pause, next, previous, stop, seek, append to the queue, repeat, shuffle *including Favourites*, device volume |
+| **Ratings** | read them all, set one, or rate a batch in one write — `0` clears, exactly as tapping the star a track already sits on does |
+| **Playlists** | create, read, rename, reorder, duplicate, delete, add and remove tracks |
+| **Settings** | theme, crossfade, trim silence, mix-with-other-audio, volume style |
+| **Sleep timer · A-B** | arm and cancel; set and clear a loop region |
+| **Share** | pop the real chooser on the device, or take the file and the text yourself |
+
+**The rules it is built to.**
+
+- **Off until you turn it on**, and stopping it is one switch (or the Stop action on its own
+  notification). It runs in its **own foreground service**, separate from playback, because the
+  request an agent most obviously wants to make is "start playing something" — which is exactly
+  when `PlaybackService` does not exist. The notification names the address, because a socket that
+  is open should never be a thing you have to go looking for.
+- **Bound to `127.0.0.1`** unless you switch on LAN access, which says plainly what it changes.
+  From a laptop, `adb forward` is the intended route and needs no LAN access at all.
+- **The key is generated, never typed**, and compared in constant time. Anything but
+  `GET /api/health` without it is a `401`. You can issue a new one at any moment, which instantly
+  invalidates the old.
+- **Everything it can do, the UI can do.** It is a second pair of hands, not a second set of
+  features — so playing a list honours your saved shuffle mode, a group key means what it means in
+  the Browse tabs, and a playlist an agent creates appears on the library screen while you watch.
+- **`GET /api/docs` serves the whole reference** to whoever holds the key, so an agent needs the
+  port and nothing else — and the reference cannot drift from the build answering it.
+- **Sharing, for something that has no hands.** `POST /api/share` starts the real chooser and then
+  tells you whether anyone can *see* it: Android discards a dialog thrown by an app that is not on
+  screen, so a response saying `"visible": false` is the honest answer, and the share text and the
+  file urls come back either way. The direct route is `GET /api/tracks/{id}/file` — the audio,
+  streamed and named.
+
 ### A-B loop
 - Mark **A** and **B** in a track and loop the region between them, driven from the service so it survives closing the UI. Re-reads the real playback position each pass, so seeking or pausing inside the region doesn't desync it.
 
@@ -105,7 +168,10 @@ Media3's own `shuffleModeEnabled` is an unweighted permutation with nothing to b
 - Tap‑to‑expand **mini‑player** plus a full **Now Playing** screen: artwork, scrub bar, shuffle, repeat cycle, previous / play / next.
 - **Light / dark / follow‑system** themes — **defaults to dark**.
 
-No analytics, ads, or network access — Lull only reads the audio already on your device.
+**No analytics, ads, or outbound network access** — Lull talks to no server, and there is nothing
+in it that could. Since 1.9 the manifest does hold `INTERNET`, because the **local API** below
+cannot open a listening socket without it; that socket is off until you switch it on and binds
+`127.0.0.1` unless you say otherwise. Nothing ever leaves the device unless you send it.
 
 ---
 
@@ -120,8 +186,9 @@ Everything persistent is in the **overflow menu** on the library screen, and is 
 | **Crossfade** | Slider, 0–12s (0 = off) | Off |
 | **Trim silence** | Checkbox | Off |
 | **Mix with other audio** | Checkbox | On |
+| **Local API** | Off / on, with a generated key, a port and a LAN switch | Off |
 
-Repeat, shuffle (off / shuffle / **favourites**) and the volume bar/knob choice are set on the **Now Playing** screen, along with the **star rating** for the playing track; the **A-B loop** buttons and the **sleep timer** (moon) are there too. The sleep timer is the one entry that isn't a persistent setting — a running countdown is intentionally dropped on restart, and only the duration you last picked is remembered.
+Repeat, shuffle (off / shuffle / **favourites**) and the volume bar/knob choice are set on the **Now Playing** screen, along with the **star rating** for the playing track; the **A-B loop** buttons, the **sleep timer** (moon) and **share** are there too. The sleep timer is the one entry that isn't a persistent setting — a running countdown is intentionally dropped on restart, and only the duration you last picked is remembered.
 
 None of the three playback settings can be pushed through a `MediaController`: crossfade is Lull's own concept rather than a Media3 one, and skip-silence and audio-focus handling live on `ExoPlayer` and not on the `Player` interface a controller talks to. So all three are written to `SharedPreferences` and picked up by `PlaybackService` through an `OnSharedPreferenceChangeListener`, which is what lets them take effect on the *live* player without restarting playback.
 
@@ -167,12 +234,19 @@ It also reports the four seek commands as always‑available so the buttons stay
 - `local.properties` with `sdk.dir=/path/to/Android/Sdk`
 
 ### Tests
-`Shuffle` makes a claim about probability, which one run can neither confirm nor refute, so it has
-unit tests that check the distribution over thousands of draws from a fixed seed:
-
 ```bash
-./gradlew testDebugUnitTest
+./gradlew testDebugUnitTest      # 82 tests
 ```
+
+Three things are tested, and they are the three where being nearly right is invisible from the UI:
+
+- **`Shuffle`** makes a claim about *probability*, which one run can neither confirm nor refute — so
+  the distribution is checked over thousands of draws from a fixed seed.
+- **The API** — request parsing, routing, auth and every error shape — runs against a fake backend
+  with no Android in it. One test walks the route list `/api/docs` advertises and fails if any of it
+  is unrouted, so the reference cannot drift from the build.
+- **The share text and the formatters**, because that text is the only thing the person on the
+  other end of a share actually reads.
 
 ### Debug (no signing needed)
 ```bash
@@ -212,12 +286,28 @@ app/src/main/java/com/lull/player/
 ├── PlaylistStore.kt       # playlists (create/rename/delete/add/remove/reorder) + last-viewed collection
 ├── RatingStore.kt         # 1-5 star ratings by track id, with an in-memory cache
 ├── Shuffle.kt             # the weighted draw behind Favourites shuffle
+├── Sharing.kt             # sharing a track out: the file, and the metadata that travels with it
+├── Format.kt              # durations and sizes, the conversions with exact right answers
+├── Changes.kt             # "something (usually the API) changed what the library should show"
 ├── VolumeKnobView.kt      # custom circular volume knob
 ├── ArtLoader.kt           # async artwork loading + LRU cache
 ├── TrackAdapter.kt        # RecyclerView list adapter
 ├── AudioItem.kt           # audio model + MediaItem mapping
 ├── Prefs.kt               # repeat, shuffle mode, volume style, crossfade, mix-audio, trim-silence
 └── ThemeManager.kt        # light/dark/system theme
+
+app/src/main/java/com/lull/player/api/      # the local API — off unless you switch it on
+├── ApiRouter.kt           # which path means what, and which failures are the caller's fault
+├── ApiBackend.kt          # everything the API can do, with no Android type in sight
+├── LullBackend.kt         # ...wired to the real library, player and stores
+├── Http.kt                # just enough HTTP/1.1 to serve it, and no more
+├── ApiServer.kt           # the socket: accept, read one request, answer, close
+├── ApiService.kt          # the foreground service that keeps it listening
+├── ApiDocs.kt             # the reference served at GET /api/docs
+├── ApiPrefs.kt            # enabled, key, port, LAN
+├── ApiSettingsDialog.kt   # the panel it is switched on from
+├── MainThread.kt          # hop to the main thread for the calls that insist on it
+└── BootReceiver.kt        # puts it back after a reboot, if it was on
 ```
 
 ---

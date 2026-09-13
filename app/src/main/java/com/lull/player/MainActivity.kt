@@ -33,6 +33,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.tabs.TabLayout
 import com.google.common.util.concurrent.ListenableFuture
+import com.lull.player.api.ApiService
+import com.lull.player.api.ApiSettingsDialog
 import com.lull.player.databinding.ActivityMainBinding
 import com.lull.player.databinding.DialogCrossfadeBinding
 import kotlinx.coroutines.Dispatchers
@@ -104,6 +106,9 @@ class MainActivity : AppCompatActivity() {
         trackAdapter.notifyRatingsChanged()
     }
 
+    /** The API can edit playlists while nobody has touched the phone; redraw when it does. */
+    private val changeListener: () -> Unit = { refresh() }
+
     // ---------------- Lifecycle ----------------
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -160,6 +165,10 @@ class MainActivity : AppCompatActivity() {
         })
 
         if (OpenIntent.isExternal(intent)) pendingOpen = intent
+
+        // The API survives the app being closed but not the process being killed, so opening the
+        // library is the natural moment to put it back if it is meant to be listening.
+        ApiService.startIfEnabled(this)
     }
 
     override fun onNewIntent(newIntent: Intent) {
@@ -175,12 +184,14 @@ class MainActivity : AppCompatActivity() {
         super.onStart()
         connectController()
         RatingStore.addListener(ratingListener)
+        Changes.addListener(changeListener)
         if (hasPermission()) loadTracks() else showPermissionPrompt()
     }
 
     override fun onStop() {
         super.onStop()
         RatingStore.removeListener(ratingListener)
+        Changes.removeListener(changeListener)
         controller?.removeListener(playerListener)
         controllerFuture?.let { MediaController.releaseFuture(it) }
         controller = null
@@ -480,6 +491,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.sel_queue -> { queueTracks(tracks); mode.finish() }
                 R.id.sel_add_playlist -> showAddToPlaylist(tracks) { mode.finish() }
                 R.id.sel_rate -> showRatingDialog(tracks) { mode.finish() }
+                R.id.sel_share -> { shareTracks(tracks); mode.finish() }
                 R.id.sel_select_all -> {
                     if (showingTracks()) trackAdapter.selectAll() else groupAdapter.selectAll()
                     onSelectionChanged()
@@ -592,6 +604,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // ---------------- Share ----------------
+
+    /**
+     * Sends the selected files themselves, with their metadata alongside — the same handoff a file
+     * manager makes when it opens a track *into* Lull, in the other direction. Works on a group
+     * selection too, since an album long-pressed resolves to its tracks before it gets here.
+     */
+    private fun shareTracks(tracks: List<AudioItem>) {
+        if (tracks.isEmpty()) { toast(getString(R.string.nothing_selected)); return }
+        val intent = Sharing.intentFor(this, tracks)
+        if (intent == null) { toast(getString(R.string.share_failed)); return }
+        runCatching { startActivity(intent) }
+            .onFailure { toast(getString(R.string.share_failed)) }
+    }
+
     // ---------------- Ratings ----------------
 
     /**
@@ -673,6 +700,7 @@ class MainActivity : AppCompatActivity() {
             R.id.action_rename_playlist -> { currentPlaylist()?.let { showRenameDialog(it) }; true }
             R.id.action_delete_playlist -> { currentPlaylist()?.let { confirmDeletePlaylist(it) }; true }
             R.id.action_sleep_timer -> { SleepTimerDialog.show(this); true }
+            R.id.action_api -> { ApiSettingsDialog.show(this); true }
             R.id.action_crossfade -> { showCrossfadeDialog(); true }
             R.id.action_mix_audio -> {
                 val on = !item.isChecked

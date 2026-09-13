@@ -9,7 +9,19 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!--
+        The local API, and nothing else, needs these three. A listening socket requires INTERNET
+        even when it only ever binds 127.0.0.1; the special-use foreground service is what keeps
+        the API answering when nothing is playing; and BOOT_COMPLETED puts it back after a reboot.
+        All three are inert while the API is switched off, which is how it ships. Lull still makes
+        no outbound connection of any kind — there is nothing in it that talks to a server.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <application
+        android:name=".LullApp"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -104,6 +116,29 @@
             android:exported="false"
             android:theme="@style/Theme.Lull"
             android:parentActivityName=".MainActivity" />
+
+        <!--
+            The API's own foreground service. Separate from PlaybackService on purpose: that one
+            exists while there is something to play, and the API has to answer precisely when there
+            isn't — "start playing something" being the request an agent most wants to make.
+        -->
+        <service
+            android:name=".api.ApiService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Serves the user-enabled local HTTP API that lets a script on this device control playback" />
+        </service>
+
+        <receiver
+            android:name=".api.BootReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".PlaybackService"

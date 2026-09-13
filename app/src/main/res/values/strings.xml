@@ -148,4 +148,32 @@
     <string name="rating_cleared">Rating cleared</string>
     <string name="rated_count">Rated %2$s (%1$d tracks)</string>
     <string name="rating_cleared_count">Rating cleared on %1$d tracks</string>
+
+    <!-- Share -->
+    <string name="share_track">Share</string>
+    <string name="share_nothing_playing">Nothing is playing</string>
+    <string name="share_failed">Nothing on this device can accept that share</string>
+
+    <!-- Local API -->
+    <string name="api">Local API</string>
+    <string name="api_menu">Local API\u2026</string>
+    <string name="api_enable">Enable the local API</string>
+    <string name="api_explain">Lets a script or agent on this device drive Lull over HTTP — the library, playback, playlists, ratings, settings and sharing. Off unless you turn it on.</string>
+    <string name="api_key_label">API key</string>
+    <string name="api_key_none">No key yet — enable the API to generate one.</string>
+    <string name="api_copy">Copy key</string>
+    <string name="api_copied">API key copied</string>
+    <string name="api_regenerate">New key</string>
+    <string name="api_regenerated">New key generated — the old one stops working now</string>
+    <string name="api_port_label">Port</string>
+    <string name="api_lan">Reachable from other devices on this network</string>
+    <string name="api_lan_warning">Off, only this device can reach it (127.0.0.1). On, anything on your network can — key or not, don\'t do this on a network you don\'t trust.</string>
+    <string name="api_running">Listening on %1$s</string>
+    <string name="api_stopped">Not running</string>
+    <string name="api_failed">Could not listen on port %1$d — %2$s</string>
+    <string name="api_notification_title">Lull API</string>
+    <string name="api_notification_text">Listening on %1$s</string>
+    <string name="api_channel">Local API</string>
+    <string name="api_port_invalid">Pick a port between 1024 and 65535</string>
+    <string name="api_docs_hint">GET /api/docs lists every endpoint.</string>
 </resources>
