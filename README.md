@@ -1,31 +1,38 @@
 # Lull
 
-A modern, dark‑first **music & white‑noise player for Android**, built for one habit other players get wrong: **looping a single track safely**. When repeat‑one is on, "next" and "previous" — from anywhere, including Bluetooth/headset buttons — **restart the current track instead of skipping**. Fall asleep to looping white noise and an accidental skip on a headphone/headband button just restarts it, rather than jumping into your music and waking you.
+A **music, podcast and white‑noise player for Android**. Dark by default. No ads, no analytics, no
+account, no library to import — it plays the audio already on your device, and nothing in it talks
+to a server.
 
-> Package: `com.lull.player` · minSdk 26 (Android 8.0) · targetSdk 35
+What it is *for* is control over how things actually sound and how you actually reach them: an audio
+engine where gapless, crossfade and trim‑silence each compose instead of fighting; star ratings with
+a shuffle that leans on them; seven ways through the same library; sharing that carries a track's
+metadata with it; and a local API that lets a script drive the whole app.
+
+> Package: `com.lull.player` · minSdk 26 (Android 8.0) · targetSdk 35 · [latest release](https://github.com/PortableDiag/Lull/releases/latest)
+
+---
+
+## What it does that most players don't
+
+| | |
+|---|---|
+| **Gapless, crossfade and trim silence that compose** | Crossfade keeps **two ExoPlayer engines** and overlaps them on an equal‑power curve; trim‑silence runs *below* the transition in the audio sink, so it works with either. Crossfade stands aside for repeat‑one and A‑B, which are requests to hear *this* track. |
+| **Favourites shuffle** | Rate tracks 1–5 and shuffle draws a **weighted** queue — three stars and up come around early and often. It is a **reordering, not a filter**: everything you asked for is still in the queue. |
+| **A local HTTP API** | Off until you switch it on, then key‑gated: a script or an agent can browse, play, queue, rate, build playlists, change settings and share — everything the UI can do. |
+| **Share that carries the metadata** | The file itself goes, plus title, artist, album, genre, duration, size and your rating — a `content://` uri carries none of that, and what arrives otherwise is a filename. |
+| **Safe repeat‑one** | With repeat‑one on, next and previous **restart** the track instead of skipping — from every control surface, including Bluetooth and headset buttons. |
+| **Seven ways to browse** | Tracks, Folders, Artists, Albums, Genres, Playlists and Rated, with the tab *and* the group you were in both remembered. |
+| **Open one file, get its folder** | Opening a track from a file manager queues the whole folder behind it, with no media permission needed. |
+| **A sleep timer that fades properly** | 5–90 minutes, then a **raised‑cosine** fade — flat at both ends, so it neither steps in nor lands still dropping — and it ends on pause, so your place survives. |
+
+Plus the ordinary things done properly: background playback with a media notification, A‑B looping,
+multi‑select, a playlist manager with drag‑reorder, a circular volume knob, and light/dark/system
+themes.
 
 ---
 
 ## Features
-
-### Safe repeat‑one (the point of the app)
-- With **Repeat One** active, **Next → restart** and **Previous → restart** the current track.
-- Works for every control surface: in‑app buttons, the media notification, the lock screen, and **hardware / Bluetooth media buttons** (headsets, sleep headbands).
-- The skip buttons stay enabled even on a single‑track queue, so they're tappable‑to‑restart.
-- Off / All repeat modes skip tracks normally. Your repeat & shuffle choices are **remembered**, so a white‑noise loop comes back the way you left it.
-
-### Sleep timer
-The other half of falling asleep to a looping track: **play for 5–90 minutes, fade out, then pause.**
-
-- Set it from the **moon button** on Now Playing, or from **Sleep timer** in the library's overflow menu. While it's running the Now Playing title bar counts it down (`Sleep in 24:31`) and the menu entry shows the time left.
-- The last **30 seconds** are a **raised-cosine fade** to silence. That curve is flat at both ends, so the fade eases in without an audible step and settles onto silence instead of arriving at it still dropping — on a track you're falling asleep to, the moment a fade visibly *begins* is as disruptive as the moment it ends. On a short timer the fade is capped at half the total.
-- It ends on **pause**, not stop, so the queue and your place in it survive — one tap to carry on.
-- The countdown runs in `PlaybackService`, so it survives closing the app, and it's measured against `elapsedRealtime` so it counts **through device sleep** rather than stopping with the CPU. A running timer isn't persisted across a restart: restoring a countdown would be a promise about a device that was switched off.
-- It composes with crossfade rather than fighting it — the two contribute independent gains that are multiplied in one place, so a fade-out landing mid-transition dims the pair together. A crossfade that *wouldn't finish* before the deadline is skipped outright, so the track you hear last isn't one you never chose to end on.
-
-### Background playback
-- Built on a Media3 **`MediaSessionService`** foreground service: plays with the screen off or the app closed, shows a media notification with controls, handles audio focus, and pauses on headphone unplug.
-- **Mix with other audio** (on by default): keeps playing without grabbing audio focus, so another app's video or notification doesn't stop your music.
 
 ### How tracks join: gapless, crossfade, trim silence
 Three independent settings shape what you hear between and inside tracks.
@@ -39,35 +46,6 @@ Three independent settings shape what you hear between and inside tracks.
 Crossfade and gapless are mutually exclusive by definition, and crossfade is skipped while **repeat-one** or an **A-B loop** is armed (both are requests to hear *this* track, not to blend it into something else).
 
 **Trim silence is not part of that trade-off.** It's ExoPlayer's `SilenceSkippingAudioProcessor`, which lives in the audio sink and shortens near-silent PCM as it plays out — *below* the track transition. So it works on any format with no scan of the file up front, and it composes with whichever of gapless or crossfade is in effect. It's off by default because it changes what you hear, and a rest the artist wrote is not a gap the player should close.
-
-### Opening audio from a file manager
-Lull registers for **`ACTION_VIEW` on audio** — `audio/*`, plus the `application/ogg` and `application/flac` spellings some providers still use, over `content://` and `file://` — so it appears in **Open with** for `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`, `.opus` and the rest. There is a second, extension-matched filter for senders that hand over a bare uri with no type at all, and Lull accepts a **share** (`SEND` / `SEND_MULTIPLE`) as well.
-
-Opening one track gives you **its whole folder**, so Next pages through it. Three routes, tried in order:
-
-1. **The `ClipData` the launching app attached.** A file manager already knows the folder; when it attaches the siblings, the read grant on the intent covers every one of them. No permission, no lookup — and it is the only route that works for a `.nomedia` folder. (Sift does this for audio; other file managers would have to adopt the same convention.)
-2. **The folder, out of Lull's own library** — resolve the opened file to a real path, then take every track the library holds from that directory.
-3. **The single file**, which always works.
-
-Route 2's path resolution is the awkward part: a file manager typically hands over its own `content://<their.app>.fileprovider/…` uri, which answers neither a MediaStore id nor a `DATA` column. The descriptor it opens still points at the real file, though, and `/proc/self/fd/N` is a symlink to it — so the folder is recoverable even when the uri says nothing. (Same problem, same fix as in Loopr.)
-
-**A launch from another app never waits on media permission.** Without it there is nothing to load and the intent's own grant carries the playback; with it, the library load is awaited first so the folder can be built.
-
-### Browsing: folders, artists, albums, genres
-The flat list of every track is fine for a phone holding a dozen files and useless for one holding thousands, so the same library is offered **seven ways**: Tracks, Folders, Artists, Albums, Genres, Playlists and Rated. Each grouped tab is a list you drill into and Back out of; re-tapping the current tab also comes back out. **The tab and the group you were on are both remembered.**
-
-Genre is read from MediaStore's **genre membership tables** rather than the `GENRE` column on a track, which only exists from API 30. That is one query per genre — tens, not thousands — run once per load on the IO dispatcher.
-
-### Multi-selection
-**Long-press any row to start selecting**, then tap to add more. The contextual bar offers **play**, **add to queue**, **add to playlist**, **rate**, **share**, **remove from this playlist**, and **select all**.
-
-It works on **groups** as well as tracks: long-press an album, folder or genre and everything inside it comes with the selection, without opening it first. Selection is held by **track id rather than row position**, so it survives a search keystroke or a playlist edit — positions would not. The reorder handles hide while a selection is running, because dragging and selecting are otherwise two gestures fighting over the same row.
-
-### Playlists
-- Playlists are **their own tab**, with a per-row menu — **play, rename, duplicate, delete** — and a button to make a new one. Long-press tracks and add the whole selection at once; adding a selection is **one write** for the batch rather than one per track.
-- **Drag to reorder** with the handle on the right of a row (shown only in a playlist view with no active search, where row position maps 1:1 to stored order); the order is saved when you drop it.
-- **Opens where you left off** — the library reopens on the last collection you viewed (All tracks or a specific playlist), falling back to All tracks if that playlist was deleted.
-- Playlists are stored as lists of MediaStore ids in `SharedPreferences`, so they cost almost nothing and survive files moving; a track that has since been deleted is **skipped** when the playlist is shown, not pruned, so it returns if the file (or SD card) reappears.
 
 ### Ratings, and a shuffle that leans on them
 Rate a track **1–5 stars** and the shuffle will take the hint.
@@ -92,6 +70,22 @@ The step between 2 and 3 stars is the whole design: three stars is the lowest ra
 It is a **reordering, not a filter**. Every track you asked for is still in the queue, so Next eventually reaches all of it and repeat-all still wraps the whole thing; the favourites simply come up first. Tapping a specific track still plays **that** track first and weights the rest behind it — tapping a row is a request to hear that row, the same call Lull already makes for a file opened from a file manager.
 
 Media3's own `shuffleModeEnabled` is an unweighted permutation with nothing to bias, so this had to be Lull's own ordering: it builds the queue itself (a one-pass [Efraimidis–Spirakis](https://doi.org/10.1016/j.ipl.2005.11.003) weighted draw) and hands the player a plain queue with shuffle switched off. Switching it on **mid-queue** re-weights only what has not played yet, leaving the current track alone — which also means switching it back off cannot unscramble it, because the order it replaced is gone.
+
+### Browsing: seven ways through one library
+The flat list of every track is fine for a phone holding a dozen files and useless for one holding thousands, so the same library is offered **seven ways**: Tracks, Folders, Artists, Albums, Genres, Playlists and Rated. Each grouped tab is a list you drill into and Back out of; re-tapping the current tab also comes back out. **The tab and the group you were on are both remembered.**
+
+Genre is read from MediaStore's **genre membership tables** rather than the `GENRE` column on a track, which only exists from API 30. That is one query per genre — tens, not thousands — run once per load on the IO dispatcher.
+
+### Playlists
+- Playlists are **their own tab**, with a per-row menu — **play, rename, duplicate, delete** — and a button to make a new one. Long-press tracks and add the whole selection at once; adding a selection is **one write** for the batch rather than one per track.
+- **Drag to reorder** with the handle on the right of a row (shown only in a playlist view with no active search, where row position maps 1:1 to stored order); the order is saved when you drop it.
+- **Opens where you left off** — the library reopens on the last collection you viewed (All tracks or a specific playlist), falling back to All tracks if that playlist was deleted.
+- Playlists are stored as lists of MediaStore ids in `SharedPreferences`, so they cost almost nothing and survive files moving; a track that has since been deleted is **skipped** when the playlist is shown, not pruned, so it returns if the file (or SD card) reappears.
+
+### Multi-selection
+**Long-press any row to start selecting**, then tap to add more. The contextual bar offers **play**, **add to queue**, **add to playlist**, **rate**, **share**, **remove from this playlist**, and **select all**.
+
+It works on **groups** as well as tracks: long-press an album, folder or genre and everything inside it comes with the selection, without opening it first. Selection is held by **track id rather than row position**, so it survives a search keystroke or a playlist edit — positions would not. The reorder handles hide while a selection is running, because dragging and selecting are otherwise two gestures fighting over the same row.
 
 ### Sharing a track out
 The counterpart to opening one in. **Share** from the Now Playing top bar sends the playing track;
@@ -156,8 +150,40 @@ curl -s -H "X-API-Key: $KEY" -X POST 127.0.0.1:8787/api/player/sleep -d '{"minut
   file urls come back either way. The direct route is `GET /api/tracks/{id}/file` — the audio,
   streamed and named.
 
+### Sleep timer
+**Play for 5–90 minutes, fade out, then pause** — the other half of falling asleep to something, alongside the safe repeat‑one below.
+
+- Set it from the **moon button** on Now Playing, or from **Sleep timer** in the library's overflow menu. While it's running the Now Playing title bar counts it down (`Sleep in 24:31`) and the menu entry shows the time left.
+- The last **30 seconds** are a **raised-cosine fade** to silence. That curve is flat at both ends, so the fade eases in without an audible step and settles onto silence instead of arriving at it still dropping — on a track you're falling asleep to, the moment a fade visibly *begins* is as disruptive as the moment it ends. On a short timer the fade is capped at half the total.
+- It ends on **pause**, not stop, so the queue and your place in it survive — one tap to carry on.
+- The countdown runs in `PlaybackService`, so it survives closing the app, and it's measured against `elapsedRealtime` so it counts **through device sleep** rather than stopping with the CPU. A running timer isn't persisted across a restart: restoring a countdown would be a promise about a device that was switched off.
+- It composes with crossfade rather than fighting it — the two contribute independent gains that are multiplied in one place, so a fade-out landing mid-transition dims the pair together. A crossfade that *wouldn't finish* before the deadline is skipped outright, so the track you hear last isn't one you never chose to end on.
+
+### Safe repeat‑one (what Lull was originally written for)
+- With **Repeat One** active, **Next → restart** and **Previous → restart** the current track.
+- Works for every control surface: in‑app buttons, the media notification, the lock screen, and **hardware / Bluetooth media buttons** (headsets, sleep headbands).
+- The skip buttons stay enabled even on a single‑track queue, so they're tappable‑to‑restart.
+- Off / All repeat modes skip tracks normally. Your repeat & shuffle choices are **remembered**, so a white‑noise loop comes back the way you left it.
+
 ### A-B loop
 - Mark **A** and **B** in a track and loop the region between them, driven from the service so it survives closing the UI. Re-reads the real playback position each pass, so seeking or pausing inside the region doesn't desync it.
+
+### Background playback
+- Built on a Media3 **`MediaSessionService`** foreground service: plays with the screen off or the app closed, shows a media notification with controls, handles audio focus, and pauses on headphone unplug.
+- **Mix with other audio** (on by default): keeps playing without grabbing audio focus, so another app's video or notification doesn't stop your music.
+
+### Opening audio from a file manager
+Lull registers for **`ACTION_VIEW` on audio** — `audio/*`, plus the `application/ogg` and `application/flac` spellings some providers still use, over `content://` and `file://` — so it appears in **Open with** for `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`, `.opus` and the rest. There is a second, extension-matched filter for senders that hand over a bare uri with no type at all, and Lull accepts a **share** (`SEND` / `SEND_MULTIPLE`) as well.
+
+Opening one track gives you **its whole folder**, so Next pages through it. Three routes, tried in order:
+
+1. **The `ClipData` the launching app attached.** A file manager already knows the folder; when it attaches the siblings, the read grant on the intent covers every one of them. No permission, no lookup — and it is the only route that works for a `.nomedia` folder. (Sift does this for audio; other file managers would have to adopt the same convention.)
+2. **The folder, out of Lull's own library** — resolve the opened file to a real path, then take every track the library holds from that directory.
+3. **The single file**, which always works.
+
+Route 2's path resolution is the awkward part: a file manager typically hands over its own `content://<their.app>.fileprovider/…` uri, which answers neither a MediaStore id nor a `DATA` column. The descriptor it opens still points at the real file, though, and `/proc/self/fd/N` is a symlink to it — so the folder is recoverable even when the uri says nothing. (Same problem, same fix as in Loopr.)
+
+**A launch from another app never waits on media permission.** Without it there is nothing to load and the intent's own grant carries the playback; with it, the library load is awaited first so the folder can be built.
 
 ### Volume knob *or* bar
 - The Now Playing screen offers a volume **slider bar** or a **circular knob** (drag around the dial) — switch with the tune button; your choice is saved. Both drive the device media volume, staying in sync with the hardware buttons.
@@ -169,7 +195,7 @@ curl -s -H "X-API-Key: $KEY" -X POST 127.0.0.1:8787/api/player/sleep -d '{"minut
 - **Light / dark / follow‑system** themes — **defaults to dark**.
 
 **No analytics, ads, or outbound network access** — Lull talks to no server, and there is nothing
-in it that could. Since 1.9 the manifest does hold `INTERNET`, because the **local API** below
+in it that could. Since 1.9 the manifest does hold `INTERNET`, because the **local API** above
 cannot open a listening socket without it; that socket is off until you switch it on and binds
 `127.0.0.1` unless you say otherwise. Nothing ever leaves the device unless you send it.
 
@@ -212,9 +238,9 @@ _Add screenshots here (`docs/`) — library list, Now Playing with the knob, and
 
 ---
 
-## How the safe repeat‑one works
+## Under the hood: how safe repeat‑one works
 
-The key piece is [`RepeatAwarePlayer`](app/src/main/java/com/lull/player/RepeatAwarePlayer.kt), a Media3 `ForwardingPlayer` that wraps ExoPlayer **inside the media session**. Because it sits at the session/player layer, it intercepts skips from *every* origin — UI, notification, lock screen, and AVRCP/hardware media buttons:
+The feature Lull started life as, and still the neatest piece of it. The key part is [`RepeatAwarePlayer`](app/src/main/java/com/lull/player/RepeatAwarePlayer.kt), a Media3 `ForwardingPlayer` that wraps ExoPlayer **inside the media session**. Because it sits at the session/player layer, it intercepts skips from *every* origin — UI, notification, lock screen, and AVRCP/hardware media buttons:
 
 ```kotlin
 override fun seekToNext() {
