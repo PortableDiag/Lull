@@ -412,6 +412,62 @@ class ApiRouterTest {
     }
 
     @Test
+    fun `a track nobody has analysed says so rather than claiming no dead spots`() {
+        val r = call("GET", "/api/tracks/1/quiet").obj()
+        assertFalse(r.getBoolean("measured"))
+        assertEquals(0, r.getInt("count"))
+    }
+
+    @Test
+    fun `a track analysed and found clean is measured with no sections`() {
+        backend.quiet[1L] = emptyList()
+        val r = call("GET", "/api/tracks/1/quiet").obj()
+        assertTrue(r.getBoolean("measured"))
+        assertEquals(0, r.getInt("count"))
+    }
+
+    @Test
+    fun `dead spots come back with their positions and total`() {
+        backend.quiet[1L] = listOf(QuietSection(78_000, 98_000), QuietSection(150_000, 162_000))
+        val r = call("GET", "/api/tracks/1/quiet").obj()
+        assertTrue(r.getBoolean("measured"))
+        assertEquals(2, r.getInt("count"))
+        assertEquals(32_000L, r.getLong("quiet_ms"))
+        val first = r.getJSONArray("sections").getJSONObject(0)
+        assertEquals(78_000L, first.getLong("start_ms"))
+        assertEquals("1:18", first.getString("start"))
+        assertEquals(20_000L, first.getLong("duration_ms"))
+    }
+
+    @Test
+    fun `dead spots for a track that is not there is a 404`() {
+        assertEquals(404, call("GET", "/api/tracks/99/quiet").status)
+    }
+
+    @Test
+    fun `the dead-spot settings patch through and come back`() {
+        val r = call(
+            "PATCH", "/api/settings",
+            """{"pushQuiet":true,"quietBoost":80,"quietThresholdDb":6}"""
+        ).obj()
+        assertTrue(r.getBoolean("push_quiet"))
+        assertEquals(80, r.getInt("quiet_boost"))
+        assertEquals(6, r.getInt("quiet_threshold_db"))
+    }
+
+    @Test
+    fun `a dead-spot setting outside its range is refused`() {
+        assertEquals(400, call("PATCH", "/api/settings", """{"quietBoost":400}""").status)
+        assertEquals(400, call("PATCH", "/api/settings", """{"quietBoost":1}""").status)
+        assertEquals(400, call("PATCH", "/api/settings", """{"quietThresholdDb":90}""").status)
+    }
+
+    @Test
+    fun `the player says whether it is pushing through a dead spot`() {
+        assertTrue(call("GET", "/api/player").obj().has("boosted"))
+    }
+
+    @Test
     fun `ratings come back by id and counted by star`() {
         val r = call("GET", "/api/ratings").obj()
         assertEquals(2, r.getInt("count"))

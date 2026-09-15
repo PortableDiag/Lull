@@ -38,6 +38,12 @@ interface ApiBackend {
     /** Overrides a track's tempo, the way typing over the number in the panel does; 0 forgets it. */
     fun setBpm(id: Long, bpm: Int)
 
+    /**
+     * The quiet stretches inside a track at the current threshold, or null where it has never been
+     * analysed — which is not the same as a track that was analysed and has none.
+     */
+    fun quietSections(id: Long): List<QuietSection>?
+
     /** Null for a browse axis that doesn't exist; an empty list for one that is simply empty. */
     fun groups(tab: String): List<GroupSummary>?
 
@@ -142,8 +148,13 @@ data class PlayerSnapshot(
     /** What the playing track is actually running at — 1.0 unless Force Tempo is moving it. */
     val speed: Float = 1f,
     /** The playing track's own tempo, as [ApiBackend.bpm] reports it. */
-    val sourceBpm: Int = 0
+    val sourceBpm: Int = 0,
+    /** True while the position sits in one of the track's dead spots and is being pushed through. */
+    val boosted: Boolean = false
 )
+
+/** A stretch of one track quiet enough to be worth speeding through. */
+data class QuietSection(val startMs: Long, val endMs: Long)
 
 data class PlaylistView(val id: Long, val name: String, val trackIds: List<Long>)
 
@@ -158,7 +169,10 @@ data class SettingsSnapshot(
     val forceTempo: Boolean = false,
     val tempoBpm: Int = 0,
     val tempoMaxChange: Int = 0,
-    val tempoOnlyFaster: Boolean = true
+    val tempoOnlyFaster: Boolean = true,
+    val pushQuiet: Boolean = false,
+    val quietBoost: Int = 0,
+    val quietThresholdDb: Int = 0
 )
 
 /** Null means "leave that one alone" — a PATCH of one field must not reset the other six. */
@@ -171,7 +185,10 @@ data class SettingsPatch(
     val forceTempo: Boolean? = null,
     val tempoBpm: Int? = null,
     val tempoMaxChange: Int? = null,
-    val tempoOnlyFaster: Boolean? = null
+    val tempoOnlyFaster: Boolean? = null,
+    val pushQuiet: Boolean? = null,
+    val quietBoost: Int? = null,
+    val quietThresholdDb: Int? = null
 )
 
 /**

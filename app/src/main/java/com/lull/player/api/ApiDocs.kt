@@ -22,6 +22,7 @@ object ApiDocs {
         "PUT    /api/tracks/{id}/rating",
         "GET    /api/tracks/{id}/bpm",
         "PUT    /api/tracks/{id}/bpm",
+        "GET    /api/tracks/{id}/quiet",
         "GET    /api/groups/{folders|artists|albums|genres|playlists|rated}",
         "GET    /api/group?key=",
         "GET    /api/player",
@@ -133,7 +134,8 @@ around early and often. It reorders the queue rather than filtering it.
 
 `GET /api/settings`, and `PATCH` any of `theme` (`system\|light\|dark`), `crossfadeSec` (0–12),
 `skipSilence`, `mixAudio`, `volumeStyle` (`bar\|knob`), plus Force Tempo: `forceTempo`,
-`tempoBpm` (60–200), `tempoMaxChange` (5–100, a percentage) and `tempoOnlyFaster`.
+`tempoBpm` (60–200), `tempoMaxChange` (5–100, a percentage) and `tempoOnlyFaster`; and the dead-spot
+settings `pushQuiet`, `quietBoost` (10–150) and `quietThresholdDb` (3–24).
 
 ## Force Tempo
 
@@ -160,6 +162,35 @@ does not, then remembered. `GET /api/tracks/{id}/bpm` reports it as one of three
 `PUT /api/tracks/{id}/bpm` with `{"bpm":128}` overrides a measurement that came out wrong, and it
 sticks: nothing re-measures a tempo somebody supplied. `{"bpm":0}` forgets it and lets the next
 play work it out afresh.
+
+## Pushing through the quiet parts
+
+Force Tempo sets a speed **per track**, which does nothing for a quiet bridge *inside* one — the
+piano break in a 140 BPM song is still at 140 BPM. `pushQuiet` speeds up further while the position
+sits in one of those stretches, and ramps back out at the end of it.
+
+```bash
+curl -s -H "X-API-Key: ${'$'}KEY" -X PATCH 127.0.0.1:8787/api/settings \
+  -d '{"pushQuiet":true,"quietBoost":50,"quietThresholdDb":9}'
+```
+
+`GET /api/player` then reports `boosted` while it is happening, and `speed` shows the real figure —
+read off the engine, not recomputed, because with this on the speed moves during a track.
+
+`GET /api/tracks/{id}/quiet` lists what was found, at the current `quietThresholdDb`:
+
+```json
+{ "id": 42, "measured": true, "threshold_db": 9, "count": 1, "quiet_ms": 20000,
+  "sections": [ { "start_ms": 78000, "end_ms": 98000, "start": "1:18", "duration_ms": 20000 } ] }
+```
+
+`"measured": false` means the track has never been analysed — which is *not* the same as a track
+that was analysed and has no dead spots, and that one answers with `"count": 0`. A track is
+measured while the track before it is playing, so a queue analyses itself a step ahead of you.
+
+The threshold is applied when you ask, not when the track was measured: what is stored is the
+track's loudness curve, so moving `quietThresholdDb` re-reads everything already measured instead
+of invalidating a library.
 
 ## Share
 

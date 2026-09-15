@@ -962,6 +962,15 @@ class MainActivity : AppCompatActivity() {
         view.tempoChangeSlider.valueTo = Prefs.MAX_TEMPO_CHANGE.toFloat()
         view.tempoChangeSlider.value = Prefs.tempoMaxChange(this).toFloat()
         view.tempoOnlyFaster.isChecked = Prefs.tempoOnlyFaster(this)
+        view.tempoPushQuiet.isChecked = Prefs.pushQuiet(this)
+        view.quietBoostSlider.valueFrom = Prefs.MIN_QUIET_BOOST.toFloat()
+        view.quietBoostSlider.valueTo = Prefs.MAX_QUIET_BOOST.toFloat()
+        view.quietBoostSlider.value = Prefs.quietBoost(this).toFloat()
+        view.quietThresholdSlider.valueFrom = Prefs.MIN_QUIET_THRESHOLD.toFloat()
+        view.quietThresholdSlider.valueTo = Prefs.MAX_QUIET_THRESHOLD.toFloat()
+        view.quietThresholdSlider.value = Prefs.quietThresholdDb(this).toFloat()
+        view.quietThresholdHint.text =
+            getString(R.string.quiet_threshold_hint, EnergyProfile.MIN_SECTION_SECONDS)
 
         val storedBpm = playingId?.let { TempoStore.of(this, it) } ?: TempoStore.UNKNOWN
         if (storedBpm > 0) view.tempoTrackBpm.setText(storedBpm.toString())
@@ -973,6 +982,11 @@ class MainActivity : AppCompatActivity() {
             view.tempoValue.text = getString(R.string.tempo_bpm, view.tempoSlider.value.toInt())
             view.tempoChangeValue.text =
                 getString(R.string.tempo_max_change, view.tempoChangeSlider.value.toInt())
+            view.quietBoostValue.text =
+                getString(R.string.quiet_boost, view.quietBoostSlider.value.toInt())
+            view.quietThresholdValue.text =
+                getString(R.string.quiet_threshold, view.quietThresholdSlider.value.toInt())
+            view.quietSections.text = quietLine(playingId, view.quietThresholdSlider.value.toInt())
             view.tempoTrackEffect.text = effectLine(
                 playingId = playingId,
                 typedBpm = view.tempoTrackBpm.text.toString().toIntOrNull(),
@@ -985,6 +999,9 @@ class MainActivity : AppCompatActivity() {
         view.tempoSlider.addOnChangeListener { _, _, _ -> refresh() }
         view.tempoChangeSlider.addOnChangeListener { _, _, _ -> refresh() }
         view.tempoOnlyFaster.setOnCheckedChangeListener { _, _ -> refresh() }
+        view.quietBoostSlider.addOnChangeListener { _, _, _ -> refresh() }
+        view.quietThresholdSlider.addOnChangeListener { _, _, _ -> refresh() }
+        view.tempoPushQuiet.setOnCheckedChangeListener { _, _ -> refresh() }
         view.tempoTrackBpm.addTextChangedListener(afterTextChanged = { refresh() })
         if (playingId == null) {
             view.tempoTrackLabel.visibility = View.GONE
@@ -1002,6 +1019,9 @@ class MainActivity : AppCompatActivity() {
                 Prefs.setTempoBpm(this, bpm)
                 Prefs.setTempoMaxChange(this, view.tempoChangeSlider.value.toInt())
                 Prefs.setTempoOnlyFaster(this, view.tempoOnlyFaster.isChecked)
+                Prefs.setQuietBoost(this, view.quietBoostSlider.value.toInt())
+                Prefs.setQuietThresholdDb(this, view.quietThresholdSlider.value.toInt())
+                Prefs.setPushQuiet(this, view.tempoPushQuiet.isChecked)
                 // Written last, so the service re-applies once against settings that are all in
                 // place rather than once per key as they land.
                 Prefs.setForceTempo(this, on)
@@ -1020,6 +1040,26 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    /**
+     * What the dead-spot settings would find in the track playing right now.
+     *
+     * Shown live against the threshold slider rather than only after saving, because "how quiet
+     * counts" is the one setting here with no intuitive units — a number of decibels means nothing
+     * until you can see that moving it from 9 to 6 turns two dead spots into five.
+     */
+    private fun quietLine(playingId: Long?, thresholdDb: Int): String {
+        if (playingId == null) return ""
+        if (ProfileStore.needsAnalysis(this, playingId)) return getString(R.string.quiet_not_measured)
+        val sections = ProfileStore.sectionsFor(this, playingId, thresholdDb)
+        if (sections.isEmpty()) return getString(R.string.quiet_sections_none)
+        return resources.getQuantityString(
+            R.plurals.quiet_sections,
+            sections.size,
+            sections.size,
+            Format.duration(EnergyProfile.quietMs(sections))
+        )
     }
 
     /** "128 BPM · playing at 1.09x (140 BPM)" — the whole feature, for the track you can hear. */

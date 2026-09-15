@@ -197,4 +197,18 @@
     <string name="tempo_nothing_playing">Nothing is playing</string>
     <string name="tempo_set">Forcing %1$d BPM</string>
     <string name="tempo_unset">Force tempo off</string>
+    <!-- Push through quiet parts -->
+    <string name="push_quiet">Push through quiet parts</string>
+    <string name="push_quiet_explain">Speeds up further during a quiet stretch inside a track — the piano bridge in the middle of a rock song. The tempo of that bridge is the same as the rest of the song, so forcing a tempo alone does not touch it.</string>
+    <string name="quiet_boost_label">HOW MUCH FASTER IN A QUIET PART</string>
+    <string name="quiet_boost">+%1$d%%</string>
+    <string name="quiet_threshold_label">HOW QUIET COUNTS AS A DEAD SPOT</string>
+    <string name="quiet_threshold">%1$d dB below the track</string>
+    <string name="quiet_threshold_hint">Measured against the track\'s own level, so a quietly mastered song is not one long dead spot. Lower this and ordinary verses start to qualify; raise it and only near-silence does. A stretch has to last %1$d seconds to count.</string>
+    <plurals name="quiet_sections">
+        <item quantity="one">%1$d dead spot in this track — %2$s of it</item>
+        <item quantity="other">%1$d dead spots in this track — %2$s of it</item>
+    </plurals>
+    <string name="quiet_sections_none">No dead spots found in this track</string>
+    <string name="quiet_not_measured">Not measured yet — it is worked out while the track before it plays</string>
 </resources>

@@ -26,6 +26,8 @@ import com.lull.player.R
 import com.lull.player.RatingStore
 import com.lull.player.Shuffle
 import com.lull.player.Sharing
+import com.lull.player.EnergyProfile
+import com.lull.player.ProfileStore
 import com.lull.player.SleepTimer
 import com.lull.player.Tempo
 import com.lull.player.TempoStore
@@ -134,6 +136,12 @@ class LullBackend(
      * you ask for it to be worked out again.
      */
     override fun setBpm(id: Long, bpm: Int) = TempoStore.set(context, id, bpm)
+
+    override fun quietSections(id: Long): List<QuietSection>? {
+        if (ProfileStore.needsAnalysis(context, id)) return null
+        return ProfileStore.sectionsFor(context, id, Prefs.quietThresholdDb(context))
+            .map { QuietSection(it.startMs, it.endMs) }
+    }
 
     override fun trackStream(id: Long): MediaStream? {
         val item = byId(id) ?: return null
@@ -246,8 +254,14 @@ class LullBackend(
                 // are the session's, and Force Tempo sets the speed on the ExoPlayer underneath it.
                 // Recomputing from the same inputs the service used is the honest answer, and it is
                 // also the only one available while nothing is playing yet.
-                speed = Prefs.speedFor(context, tempoOf(item?.mediaId)),
-                sourceBpm = item?.mediaId?.toLongOrNull()?.let { TempoStore.of(context, it) } ?: 0
+                // Read off the player rather than recomputed: with "push through quiet parts" on,
+                // the speed moves *during* a track, so the only honest source is the engine that
+                // is playing it. The computed value is the fallback for a controller that has not
+                // been handed playback parameters yet.
+                speed = c.playbackParameters.speed.takeIf { it > 0f }
+                    ?: Prefs.speedFor(context, tempoOf(item?.mediaId)),
+                sourceBpm = item?.mediaId?.toLongOrNull()?.let { TempoStore.of(context, it) } ?: 0,
+                boosted = inQuietSection(item?.mediaId, c.currentPosition)
             )
         }
     }
@@ -255,6 +269,13 @@ class LullBackend(
     /** The playing track's own tempo as [Tempo] wants it — 0 for unknown and for tempo-less. */
     private fun tempoOf(mediaId: String?): Float =
         mediaId?.toLongOrNull()?.let { TempoStore.bpmFor(context, it) } ?: 0f
+
+    private fun inQuietSection(mediaId: String?, positionMs: Long): Boolean {
+        if (!Prefs.forceTempo(context) || !Prefs.pushQuiet(context)) return false
+        val id = mediaId?.toLongOrNull() ?: return false
+        val sections = ProfileStore.sectionsFor(context, id, Prefs.quietThresholdDb(context))
+        return EnergyProfile.sectionAt(sections, positionMs) != null
+    }
 
     /**
      * Ids, a group key, or both. A group resolves to the tracks in it, in the order the Browse tab
@@ -513,7 +534,10 @@ class LullBackend(
         forceTempo = Prefs.forceTempo(context),
         tempoBpm = Prefs.tempoBpm(context),
         tempoMaxChange = Prefs.tempoMaxChange(context),
-        tempoOnlyFaster = Prefs.tempoOnlyFaster(context)
+        tempoOnlyFaster = Prefs.tempoOnlyFaster(context),
+        pushQuiet = Prefs.pushQuiet(context),
+        quietBoost = Prefs.quietBoost(context),
+        quietThresholdDb = Prefs.quietThresholdDb(context)
     )
 
     override fun updateSettings(patch: SettingsPatch): SettingsSnapshot = MainThread.get {
@@ -535,6 +559,9 @@ class LullBackend(
         patch.tempoBpm?.let { Prefs.setTempoBpm(context, it) }
         patch.tempoMaxChange?.let { Prefs.setTempoMaxChange(context, it) }
         patch.tempoOnlyFaster?.let { Prefs.setTempoOnlyFaster(context, it) }
+        patch.quietBoost?.let { Prefs.setQuietBoost(context, it) }
+        patch.quietThresholdDb?.let { Prefs.setQuietThresholdDb(context, it) }
+        patch.pushQuiet?.let { Prefs.setPushQuiet(context, it) }
         // Last, for the same reason the panel writes it last: the service reacts to each of these
         // keys, and the switch is the one that makes it act on all of them.
         patch.forceTempo?.let { Prefs.setForceTempo(context, it) }

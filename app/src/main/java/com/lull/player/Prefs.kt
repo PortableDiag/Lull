@@ -29,10 +29,14 @@ object Prefs {
     const val KEY_TEMPO_BPM = "tempo_bpm"
     const val KEY_TEMPO_MAX_CHANGE = "tempo_max_change"
     const val KEY_TEMPO_ONLY_FASTER = "tempo_only_faster"
+    const val KEY_PUSH_QUIET = "push_quiet"
+    const val KEY_QUIET_BOOST = "quiet_boost"
+    const val KEY_QUIET_THRESHOLD = "quiet_threshold_db"
 
     /** The keys Force Tempo is spread across — the set [PlaybackService] re-applies on. */
     val TEMPO_KEYS = setOf(
-        KEY_FORCE_TEMPO, KEY_TEMPO_BPM, KEY_TEMPO_MAX_CHANGE, KEY_TEMPO_ONLY_FASTER
+        KEY_FORCE_TEMPO, KEY_TEMPO_BPM, KEY_TEMPO_MAX_CHANGE, KEY_TEMPO_ONLY_FASTER,
+        KEY_PUSH_QUIET, KEY_QUIET_BOOST, KEY_QUIET_THRESHOLD
     )
 
     /** The slider's ends. Below 60 nothing is a workout and above 200 nothing is a track. */
@@ -54,6 +58,32 @@ object Prefs {
     const val MIN_TEMPO_CHANGE = 5
     const val MAX_TEMPO_CHANGE = 100
     const val DEFAULT_TEMPO_CHANGE = 30
+
+    /**
+     * How much *extra* speed a quiet section gets, as a percentage.
+     *
+     * Allowed to go much further than [MAX_TEMPO_CHANGE] on purpose. That ceiling is about keeping
+     * a stretched track sounding like music you are listening to; this one applies to the passage
+     * you specifically want to be over, where the stretch artefacts matter far less than the
+     * seconds do. 50% is the default — a 20-second bridge becomes 13.
+     */
+    const val MIN_QUIET_BOOST = 10
+    const val MAX_QUIET_BOOST = 150
+    const val DEFAULT_QUIET_BOOST = 50
+
+    /**
+     * How far below a track's own level counts as a dead spot, in decibels.
+     *
+     * 9dB is a little over half the perceived loudness of the track around it — comfortably past a
+     * quiet verse and squarely on the breakdowns. Lower it and ordinary dynamics start to qualify;
+     * raise it and only near-silence does.
+     */
+    const val MIN_QUIET_THRESHOLD = 3
+    const val MAX_QUIET_THRESHOLD = 24
+    const val DEFAULT_QUIET_THRESHOLD = 9
+
+    /** No total speed beyond this, however the two multipliers stack up. */
+    const val MAX_TOTAL_SPEED = 3f
 
     const val VOL_BAR = 0
     const val VOL_KNOB = 1
@@ -191,9 +221,47 @@ object Prefs {
     fun setTempoOnlyFaster(context: Context, on: Boolean) =
         sp(context).edit().putBoolean(KEY_TEMPO_ONLY_FASTER, on).apply()
 
+    /**
+     * When true, a quiet stretch *inside* a track is played faster still.
+     *
+     * A separate switch from [forceTempo] rather than part of it, because they answer different
+     * complaints: one is about the slow track in a playlist, the other about the slow two minutes
+     * in a song. Wanting the first does not mean wanting the second, and the second changes the
+     * shape of a piece of music rather than just its pace.
+     */
+    fun pushQuiet(context: Context): Boolean =
+        sp(context).getBoolean(KEY_PUSH_QUIET, false)
+
+    fun setPushQuiet(context: Context, on: Boolean) =
+        sp(context).edit().putBoolean(KEY_PUSH_QUIET, on).apply()
+
+    fun quietBoost(context: Context): Int =
+        sp(context).getInt(KEY_QUIET_BOOST, DEFAULT_QUIET_BOOST)
+            .coerceIn(MIN_QUIET_BOOST, MAX_QUIET_BOOST)
+
+    fun setQuietBoost(context: Context, percent: Int) =
+        sp(context).edit()
+            .putInt(KEY_QUIET_BOOST, percent.coerceIn(MIN_QUIET_BOOST, MAX_QUIET_BOOST)).apply()
+
+    fun quietThresholdDb(context: Context): Int =
+        sp(context).getInt(KEY_QUIET_THRESHOLD, DEFAULT_QUIET_THRESHOLD)
+            .coerceIn(MIN_QUIET_THRESHOLD, MAX_QUIET_THRESHOLD)
+
+    fun setQuietThresholdDb(context: Context, db: Int) =
+        sp(context).edit()
+            .putInt(KEY_QUIET_THRESHOLD, db.coerceIn(MIN_QUIET_THRESHOLD, MAX_QUIET_THRESHOLD))
+            .apply()
+
     /** The speed one track should play at under the current settings; 1.0 when it shouldn't move. */
     fun speedFor(context: Context, bpm: Float): Float {
         if (!forceTempo(context)) return Tempo.UNCHANGED
         return Tempo.speedFor(bpm, tempoBpm(context), tempoMaxChange(context), tempoOnlyFaster(context))
+    }
+
+    /** [speedFor], multiplied up if the track is currently in one of its dead spots. */
+    fun speedFor(context: Context, bpm: Float, inQuietSection: Boolean): Float {
+        val base = speedFor(context, bpm)
+        if (!inQuietSection || !forceTempo(context) || !pushQuiet(context)) return base
+        return Tempo.boosted(base, quietBoost(context), MAX_TOTAL_SPEED)
     }
 }

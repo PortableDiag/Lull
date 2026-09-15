@@ -20,6 +20,7 @@ it; and a local API that lets a script drive the whole app.
 |---|---|
 | **Gapless, crossfade and trim silence that compose** | Crossfade keeps **two ExoPlayer engines** and overlaps them on an equal‑power curve; trim‑silence runs *below* the transition in the audio sink, so it works with either. Crossfade stands aside for repeat‑one and A‑B, which are requests to hear *this* track. |
 | **Force Tempo** | Set a BPM and every track plays at it — a **pitch‑preserving** stretch, so the track still sounds like itself. A tempo comes from the file's `TBPM` tag or is measured from the audio, and is remembered. A track with **no** steady tempo is found to have none and left alone; a track already fast enough is left alone too. |
+| **Pushing through the quiet parts** | The piano bridge inside a 140 BPM song is *also* at 140 BPM, so a per‑track speed does nothing for it. Lull finds the quiet stretches inside a track and speeds up further through them, ramping in and out so it reads as the track leaning forward. |
 | **Favourites shuffle** | Rate tracks 1–5 and shuffle draws a **weighted** queue — three stars and up come around early and often. It is a **reordering, not a filter**: everything you asked for is still in the queue. |
 | **A local HTTP API** | Off until you switch it on, then key‑gated: a script or an agent can browse, play, queue, rate, build playlists, change settings and share — everything the UI can do. |
 | **Share that carries the metadata** | The file itself goes, plus title, artist, album, genre, duration, size and your rating — a `content://` uri carries none of that, and what arrives otherwise is a filename. |
@@ -111,10 +112,52 @@ place. A crossfade also sets the **incoming** track's own speed before it is hea
 at different tempos fade into each other at the two speeds that bring them both to the one you
 asked for — the transition itself has no tempo change in it.
 
-**What it does not do.** It is a tempo per *track*, so a quiet piano bridge inside a 140 BPM rock
-song is still at 140 BPM and is left where it is — Force Tempo removes the slow *tracks* from a
-playlist, not the slow *sections* inside one. Pushing through low‑energy passages is a different
-feature and is on the roadmap.
+### Pushing through the quiet parts
+Force Tempo above sets a speed **per track**, and that is genuinely all it can do about a dead
+spot: the piano bridge in the middle of a 140 BPM rock song is *also* at 140 BPM, so there is no
+tempo there to correct. What is wrong with it is that the **energy drops out** — and that is a
+different measurement and a different fix.
+
+**Push through quiet parts** finds those stretches and speeds up further while you are in one.
+
+| Control | Default | What it does |
+|---|---|---|
+| **Push through quiet parts** | off | The switch. |
+| **How much faster in a quiet part** | +50% | Stacked on top of whatever the track was already doing. Goes to +150%, much further than the whole‑track ceiling, because this applies to the passage you specifically *want* to be over — stretch artefacts matter far less there than the seconds do. |
+| **How quiet counts as a dead spot** | 9 dB | Measured against the track's own level. |
+
+**Relative to the track, never absolute.** A quietly mastered song is not one long dead spot and a
+loud one is not free of them, so "full level" is a **high percentile of that track's own seconds**.
+Not its peak — one cymbal crash would raise the bar for the whole song and turn ordinary verses
+into dead spots.
+
+**Three guards against speeding up where it would be vandalism:**
+
+- **A stretch must last 6 seconds.** The bar of held breath before a drop is the *opposite* of a
+  dead spot; speeding through it would wreck the one moment the track was building to.
+- **Two quiet stretches split by a short fill are one dead spot**, not two — otherwise the speed
+  ramps down and straight back up in the middle of it.
+- **Every second of a reported section meets the threshold on its own.** An earlier cut widened the
+  threshold on the way *out* of a section, as decibel hysteresis, which let a run continue through
+  seconds that did not qualify at all: on a real device a **4‑second dip swallowed the remaining
+  160 seconds** of the track. Merging already provides the anti‑flap property that was meant to
+  buy, so the hysteresis is gone.
+
+**It ramps, and it ramps early.** The speed moves over ~800ms rather than stepping — a step is a
+lurch, and a lurch is what you notice instead of the music. The ramp *starts* 800ms before the
+quiet part does, so it has finished arriving by the time you get there; beginning it on the
+boundary would play the first seconds of the dead spot, the ones most worth skipping, at the old
+speed.
+
+**One decode, two answers.** Where a track goes quiet needs the **whole** file, unlike its tempo,
+which needs half a minute from the middle. So [`TrackAnalysis`](app/src/main/java/com/lull/player/TrackAnalysis.kt)
+decodes end to end once and produces both — once per track, on a background worker, only while the
+feature is on, and a track *ahead* of the one you are listening to.
+
+**What is stored is the curve, not the conclusion.** One byte per second, in its own preferences
+file. So moving the threshold slider **re‑reads every track already measured** rather than
+invalidating a library, and the panel tells you live what the current setting finds in the track
+playing right now.
 
 ### Ratings, and a shuffle that leans on them
 Rate a track **1–5 stars** and the shuffle will take the hint.
@@ -193,7 +236,7 @@ curl -s -H "X-API-Key: $KEY" -X POST 127.0.0.1:8787/api/player/sleep -d '{"minut
 | **Ratings** | read them all, set one, or rate a batch in one write — `0` clears, exactly as tapping the star a track already sits on does |
 | **Playlists** | create, read, rename, reorder, duplicate, delete, add and remove tracks |
 | **Settings** | theme, crossfade, trim silence, mix-with-other-audio, volume style, Force Tempo |
-| **Tempo** | read a track's BPM and the state of it (known / unknown / none), or override one that came out wrong |
+| **Tempo** | read a track's BPM and the state of it (known / unknown / none), or override one that came out wrong; list the dead spots inside a track |
 | **Sleep timer · A-B** | arm and cancel; set and clear a loop region |
 | **Share** | pop the real chooser on the device, or take the file and the text yourself |
 
@@ -282,7 +325,7 @@ Everything persistent is in the **overflow menu** on the library screen, and is 
 | **Crossfade** | Slider, 0–12s (0 = off) | Off |
 | **Trim silence** | Checkbox | Off |
 | **Mix with other audio** | Checkbox | On |
-| **Force tempo** | Off / on, with a target BPM (60–200), a stretch ceiling and a never‑slow‑down switch | Off |
+| **Force tempo** | Off / on, with a target BPM (60–200), a stretch ceiling, a never‑slow‑down switch, and pushing through quiet parts | Off |
 | **Local API** | Off / on, with a generated key, a port and a LAN switch | Off |
 
 Repeat, shuffle (off / shuffle / **favourites**) and the volume bar/knob choice are set on the **Now Playing** screen, along with the **star rating** for the playing track; the **A-B loop** buttons, the **sleep timer** (moon) and **share** are there too. The sleep timer is the one entry that isn't a persistent setting — a running countdown is intentionally dropped on restart, and only the duration you last picked is remembered.
@@ -332,7 +375,7 @@ It also reports the four seek commands as always‑available so the buttons stay
 
 ### Tests
 ```bash
-./gradlew testDebugUnitTest      # 138 tests
+./gradlew testDebugUnitTest      # 171 tests
 ```
 
 Four things are tested, and they are the four where being nearly right is invisible from the UI:
@@ -350,6 +393,10 @@ Four things are tested, and they are the four where being nearly right is invisi
   tests exist because they failed when they were written: a whole-frame lag search reads a 160 BPM
   track as 80, and a uniform 200 BPM rhythm reads as 100 unless the tie-break prefers the beat over
   the bar.
+- **Dead-spot detection**, where most of the tests are *false positives* — the build-up before a
+  drop, a quietly mastered track, a passage hovering on the threshold. Speeding up in the wrong
+  place is not a crash; it is a track that lurches on a phone in the middle of a run, and only a
+  test says so before you do.
 
 ### Debug (no signing needed)
 ```bash
@@ -391,7 +438,9 @@ app/src/main/java/com/lull/player/
 ├── Shuffle.kt             # the weighted draw behind Favourites shuffle
 ├── Tempo.kt               # Force Tempo's arithmetic: source BPM + target -> playback speed
 ├── BpmAnalysis.kt         # onset envelope + autocorrelation, and the octave decisions
-├── BpmDetector.kt         # decodes a slice of a track and hands it to BpmAnalysis
+├── EnergyProfile.kt       # where a track goes quiet, and which stretches are worth pushing through
+├── TrackAnalysis.kt       # one decode, two answers: the tempo and the energy over time
+├── ProfileStore.kt        # each track's loudness curve — the curve, not the conclusion
 ├── Id3Bpm.kt              # the TBPM frame, where the file already knows its tempo
 ├── TempoStore.kt          # a tempo per track, including "analysed, hasn't got one"
 ├── Sharing.kt             # sharing a track out: the file, and the metadata that travels with it
@@ -423,10 +472,6 @@ app/src/main/java/com/lull/player/api/      # the local API — off unless you s
 ## Roadmap ideas
 - Per‑track resume position
 - Sensitivity control for trim silence (how quiet, and for how long, counts as a gap)
-- **Pushing through low‑energy sections**, which is the part of a dead spot Force Tempo cannot
-  reach: a quiet bridge inside a 140 BPM track is still at 140 BPM, so a per‑track speed leaves it
-  exactly where it was. Doing it properly means an energy profile of the whole file rather than a
-  slice of it, and a speed that moves *during* a track.
 - Exporting ratings, playlists and tempos
 
 ---

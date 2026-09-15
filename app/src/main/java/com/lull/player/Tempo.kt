@@ -104,6 +104,20 @@ object Tempo {
     /** A floor under any speed used as a divisor, so nothing downstream can divide by zero. */
     const val MIN_SPEED = 0.05f
 
+    /**
+     * The speed inside a dead spot: the track's own forced speed, multiplied up.
+     *
+     * A multiplier rather than a second target tempo, because a dead spot has no tempo problem —
+     * the piano bridge in a 140 BPM song is at 140 BPM. What is wrong with it is that you want it
+     * to be over, so the control is "how much faster", and it stacks on top of whatever the track
+     * was already doing rather than replacing it.
+     *
+     * [maxTotal] is the backstop on that stacking: a 30% stretch under a 150% boost is 3.25x, which
+     * is a sound effect rather than a song.
+     */
+    fun boosted(baseSpeed: Float, boostPercent: Int, maxTotal: Float): Float =
+        (baseSpeed * (1f + boostPercent.coerceAtLeast(0) / 100f)).coerceAtMost(maxTotal)
+
     /** The tempo you will actually hear: the track's own, played at [speed]. */
     fun effectiveBpm(sourceBpm: Float, speed: Float): Float = sourceBpm * speed
 

@@ -189,6 +189,32 @@ class ApiRouter(
                 }
             }
 
+            rest.size == 2 && rest[1] == "quiet" -> get(r) {
+                val trackId = id(rest[0])
+                if (backend.track(trackId) == null) throw notFound("track", rest[0])
+                val sections = backend.quietSections(trackId)
+                ApiResponse.json(
+                    JSONObject()
+                        .put("id", trackId)
+                        .put("measured", sections != null)
+                        .put("threshold_db", backend.settings().quietThresholdDb)
+                        .put("count", sections?.size ?: 0)
+                        .put("quiet_ms", sections?.sumOf { it.endMs - it.startMs } ?: 0L)
+                        .put(
+                            "sections",
+                            JSONArray(
+                                (sections ?: emptyList()).map {
+                                    JSONObject()
+                                        .put("start_ms", it.startMs)
+                                        .put("end_ms", it.endMs)
+                                        .put("start", com.lull.player.Format.duration(it.startMs))
+                                        .put("duration_ms", it.endMs - it.startMs)
+                                }
+                            )
+                        )
+                )
+            }
+
             rest.size == 2 && rest[1] == "rating" -> {
                 if (r.method != "PUT" && r.method != "POST") return methodNotAllowed(r, "PUT", "POST")
                 val trackId = id(rest[0])
@@ -528,6 +554,20 @@ class ApiRouter(
                     400, "tempoMaxChange out of range: $tempoChange",
                     "${Prefs.MIN_TEMPO_CHANGE} to ${Prefs.MAX_TEMPO_CHANGE}, a percentage"
                 )
+            val quietBoost = obj.optIntOrNull("quietBoost") ?: obj.optIntOrNull("quiet_boost")
+            if (quietBoost != null && quietBoost !in Prefs.MIN_QUIET_BOOST..Prefs.MAX_QUIET_BOOST)
+                throw ApiException(
+                    400, "quietBoost out of range: $quietBoost",
+                    "${Prefs.MIN_QUIET_BOOST} to ${Prefs.MAX_QUIET_BOOST}, a percentage added on top of the track's own speed"
+                )
+            val quietThreshold =
+                obj.optIntOrNull("quietThresholdDb") ?: obj.optIntOrNull("quiet_threshold_db")
+            if (quietThreshold != null &&
+                quietThreshold !in Prefs.MIN_QUIET_THRESHOLD..Prefs.MAX_QUIET_THRESHOLD
+            ) throw ApiException(
+                400, "quietThresholdDb out of range: $quietThreshold",
+                "${Prefs.MIN_QUIET_THRESHOLD} to ${Prefs.MAX_QUIET_THRESHOLD}, decibels below the track's own level"
+            )
             val patch = SettingsPatch(
                 theme = theme,
                 crossfadeSec = crossfade,
@@ -538,7 +578,10 @@ class ApiRouter(
                 tempoBpm = tempoBpm,
                 tempoMaxChange = tempoChange,
                 tempoOnlyFaster = obj.optBooleanOrNull("tempoOnlyFaster")
-                    ?: obj.optBooleanOrNull("tempo_only_faster")
+                    ?: obj.optBooleanOrNull("tempo_only_faster"),
+                pushQuiet = obj.optBooleanOrNull("pushQuiet") ?: obj.optBooleanOrNull("push_quiet"),
+                quietBoost = quietBoost,
+                quietThresholdDb = quietThreshold
             )
             if (patch == SettingsPatch()) throw ApiException(
                 400, "nothing to change", "GET /api/settings shows what there is to set"
@@ -618,6 +661,9 @@ class ApiRouter(
         .put("tempo_bpm", s.tempoBpm)
         .put("tempo_max_change", s.tempoMaxChange)
         .put("tempo_only_faster", s.tempoOnlyFaster)
+        .put("push_quiet", s.pushQuiet)
+        .put("quiet_boost", s.quietBoost)
+        .put("quiet_threshold_db", s.quietThresholdDb)
 
     private fun playerJson(p: PlayerSnapshot): JSONObject = JSONObject()
         .put("connected", p.connected)
@@ -644,6 +690,7 @@ class ApiRouter(
         // store's -1 means "analysed, hasn't got one", which is a distinction that belongs on the
         // endpoint that explains it rather than as a magic number in a field called source_bpm.
         .put("source_bpm", if (p.sourceBpm > 0) p.sourceBpm else JSONObject.NULL)
+        .put("boosted", p.boosted)
 
     // ---------------- Small helpers ----------------
 

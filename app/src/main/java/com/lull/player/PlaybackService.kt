@@ -89,6 +89,13 @@ class PlaybackService : MediaSessionService() {
     /** A tempo corrected by hand, or one the worker has just written down, changes the speed now. */
     private val tempoListener: () -> Unit = { handler.post { applyTempo() } }
 
+    /** The dead spots in the track now playing, at the current threshold. Re-read on a change. */
+    private var quietSections: List<EnergyProfile.Section> = emptyList()
+
+    /** The speed the audible engine is heading for, and the one it is actually at. */
+    private var targetSpeed = Tempo.UNCHANGED
+    private var rampingSpeed = false
+
     private val abListener: () -> Unit = { syncAbWatcher() }
 
     /**
@@ -122,6 +129,7 @@ class PlaybackService : MediaSessionService() {
         AbLoop.addListener(abListener)
         SleepTimer.addListener(sleepListener)
         TempoStore.addListener(tempoListener)
+        ProfileStore.addListener(tempoListener)
         handler.post(ticker)
     }
 
@@ -177,7 +185,17 @@ class PlaybackService : MediaSessionService() {
      */
     private fun applyTempo() {
         val a = active ?: return
-        a.setPlaybackSpeed(speedFor(a.currentMediaItem))
+        quietSections = sectionsFor(a.currentMediaItem)
+
+        // Straight to the base speed, without a ramp: this is a track change, a settings change or
+        // a newly measured tempo, and in all three the right speed is the one to start from. The
+        // ramp exists for the boundary of a dead spot *within* a track and nothing else.
+        val base = speedFor(a.currentMediaItem)
+        targetSpeed = base
+        rampingSpeed = false
+        a.setPlaybackSpeed(base)
+        stepQuiet()
+
         requestDetection(a.currentMediaItem)
         val next = a.nextMediaItemIndex
         if (next != C.INDEX_UNSET && next < a.mediaItemCount) requestDetection(a.getMediaItemAt(next))
@@ -187,6 +205,58 @@ class PlaybackService : MediaSessionService() {
     private fun speedFor(item: MediaItem?): Float {
         val id = item?.mediaId?.toLongOrNull() ?: return Tempo.UNCHANGED
         return Prefs.speedFor(this, TempoStore.bpmFor(this, id))
+    }
+
+    private fun sectionsFor(item: MediaItem?): List<EnergyProfile.Section> {
+        if (!Prefs.forceTempo(this) || !Prefs.pushQuiet(this)) return emptyList()
+        val id = item?.mediaId?.toLongOrNull() ?: return emptyList()
+        return ProfileStore.sectionsFor(this, id, Prefs.quietThresholdDb(this))
+    }
+
+    // ---------------- Pushing through the quiet parts ----------------
+
+    /**
+     * Decides, every tick, whether the track is in one of its dead spots — and moves the engine's
+     * speed **toward** the answer rather than to it.
+     *
+     * Two details carry the whole feel of this:
+     *
+     *  - **A ramp, not a step.** Slamming from 1.15x to 1.7x between two audio buffers is a lurch,
+     *    and a lurch is exactly the thing the listener notices instead of the music. Over
+     *    [RAMP_MS] the change reads as the track leaning forward.
+     *  - **A lookahead.** The ramp is started [RAMP_LOOKAHEAD_MS] *before* the section does, so it
+     *    has finished arriving by the time the quiet part actually starts. Beginning the ramp on
+     *    the boundary means the first seconds of the dead spot — the ones most worth skipping — are
+     *    the ones played at the old speed.
+     *
+     * Position is read from the player each tick rather than integrated, so a seek into or out of a
+     * section is handled by the same code path as playing into one.
+     */
+    private fun stepQuiet() {
+        val a = active ?: return
+        val base = speedFor(a.currentMediaItem)
+
+        val inSection = quietSections.isNotEmpty() &&
+            EnergyProfile.sectionAt(quietSections, a.currentPosition, RAMP_LOOKAHEAD_MS) != null
+        targetSpeed = Prefs.speedFor(this, bpmOf(a.currentMediaItem), inSection)
+
+        val current = a.playbackParameters.speed
+        if (kotlin.math.abs(current - targetSpeed) < SPEED_EPSILON) {
+            rampingSpeed = false
+            return
+        }
+        // The step is sized off the *base* speed so that the ramp takes the same time whatever the
+        // boost is set to — a 150% boost should not arrive three times faster than a 50% one.
+        val step = (base * RAMP_PER_TICK).coerceAtLeast(MIN_RAMP_STEP)
+        val next = if (targetSpeed > current) minOf(targetSpeed, current + step)
+                   else maxOf(targetSpeed, current - step)
+        a.setPlaybackSpeed(next)
+        rampingSpeed = kotlin.math.abs(next - targetSpeed) >= SPEED_EPSILON
+    }
+
+    private fun bpmOf(item: MediaItem?): Float {
+        val id = item?.mediaId?.toLongOrNull() ?: return 0f
+        return TempoStore.bpmFor(this, id)
     }
 
     /**
@@ -200,16 +270,23 @@ class PlaybackService : MediaSessionService() {
         if (!Prefs.forceTempo(this)) return
         val id = item?.mediaId?.toLongOrNull() ?: return
         val uri = item.localConfiguration?.uri ?: return
-        if (!TempoStore.needsDetection(this, id)) return
+        val wantsProfile = Prefs.pushQuiet(this) && ProfileStore.needsAnalysis(this, id)
+        if (!TempoStore.needsDetection(this, id) && !wantsProfile) return
         if (!analysing.add(id)) return
         tempoWorker.execute {
-            val bpm = BpmDetector.detect(this, uri)
+            val analysis = TrackAnalysis.analyse(this, uri)
             handler.post {
                 analysing.remove(id)
                 // UNKNOWN means the analysis itself failed — a file that would not open, a codec
                 // that would not start. Writing that down would retire the track permanently on
                 // the strength of one bad moment, so it is simply left for next time.
-                if (bpm != TempoStore.UNKNOWN) TempoStore.setDetected(this, id, bpm)
+                if (analysis.bpm != TempoStore.UNKNOWN) TempoStore.setDetected(this, id, analysis.bpm)
+                // The profile is written even when it came back empty, which records "measured,
+                // nothing usable" and stops the file being re-decoded on every play. Only a run
+                // that failed outright leaves the track unmeasured.
+                if (analysis.bpm != TempoStore.UNKNOWN || analysis.profile.isNotEmpty()) {
+                    ProfileStore.set(this, id, analysis.profile)
+                }
             }
         }
     }
@@ -224,8 +301,9 @@ class PlaybackService : MediaSessionService() {
         override fun run() {
             if (crossfading) stepCrossfade() else maybeStartCrossfade()
             stepSleep()
+            if (active?.isPlaying == true) stepQuiet()
             val next = when {
-                crossfading || SleepTimer.isFading -> FADE_STEP_MS
+                crossfading || SleepTimer.isFading || rampingSpeed -> FADE_STEP_MS
                 active?.isPlaying == true -> POLL_PLAYING_MS
                 else -> POLL_IDLE_MS
             }
@@ -483,6 +561,7 @@ class PlaybackService : MediaSessionService() {
         SleepTimer.removeListener(sleepListener)
         SleepTimer.cancel()
         TempoStore.removeListener(tempoListener)
+        ProfileStore.removeListener(tempoListener)
         tempoWorker.shutdownNow()
         prefs().unregisterOnSharedPreferenceChangeListener(prefsListener)
 
@@ -510,6 +589,21 @@ class PlaybackService : MediaSessionService() {
         const val POLL_PLAYING_MS = 250L
         const val POLL_IDLE_MS = 1000L
         const val MIN_FADE_MS = 500L
+
+        /** How long the speed takes to move between the two sides of a dead spot's edge. */
+        const val RAMP_MS = 800L
+
+        /** Fraction of the base speed to move per [FADE_STEP_MS] tick — [RAMP_MS] worth of steps. */
+        const val RAMP_PER_TICK = FADE_STEP_MS.toFloat() / RAMP_MS
+
+        /** Start the ramp this far ahead of a section, so it has arrived by the time one starts. */
+        const val RAMP_LOOKAHEAD_MS = RAMP_MS
+
+        /** Close enough to the target to stop writing new speeds to the audio sink. */
+        const val SPEED_EPSILON = 0.005f
+
+        /** Keeps a ramp moving even if the base speed were tiny. */
+        const val MIN_RAMP_STEP = 0.01f
 
         const val AB_POLL_MIN_MS = 20L
         const val AB_POLL_MAX_MS = 250L

@@ -110,6 +110,93 @@
             android:textColor="?attr/colorOnSurfaceVariant"
             android:textSize="12sp" />
 
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/tempoPushQuiet"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:text="@string/push_quiet"
+            android:textSize="16sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/push_quiet_explain"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="@string/quiet_boost_label"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="13sp"
+            android:letterSpacing="0.06" />
+
+        <TextView
+            android:id="@+id/quietBoostValue"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:gravity="center"
+            android:textColor="?attr/colorPrimary"
+            android:textSize="20sp"
+            android:fontFamily="sans-serif-medium" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/quietBoostSlider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="10"
+            android:valueTo="150"
+            android:stepSize="10"
+            app:labelBehavior="gone" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@string/quiet_threshold_label"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="13sp"
+            android:letterSpacing="0.06" />
+
+        <TextView
+            android:id="@+id/quietThresholdValue"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:gravity="center"
+            android:textColor="?attr/colorPrimary"
+            android:textSize="20sp"
+            android:fontFamily="sans-serif-medium" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/quietThresholdSlider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="3"
+            android:valueTo="24"
+            android:stepSize="1"
+            app:labelBehavior="gone" />
+
+        <TextView
+            android:id="@+id/quietThresholdHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/quietSections"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="?attr/colorPrimary"
+            android:textSize="13sp" />
+
         <TextView
             android:id="@+id/tempoTrackLabel"
             android:layout_width="match_parent"

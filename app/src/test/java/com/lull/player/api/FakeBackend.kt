@@ -63,6 +63,11 @@ class FakeBackend : ApiBackend {
         if (bpm == 0) tempos.remove(id) else tempos[id] = bpm
     }
 
+    /** Absent = never analysed, which the router must report differently from "analysed, none". */
+    val quiet = HashMap<Long, List<QuietSection>>()
+
+    override fun quietSections(id: Long): List<QuietSection>? = quiet[id]
+
     override fun trackStream(id: Long): MediaStream? {
         val t = tracks[id] ?: return null
         val bytes = "audio-bytes-for-$id".toByteArray()
@@ -193,7 +198,8 @@ class FakeBackend : ApiBackend {
 
     private var settings = SettingsSnapshot(
         "dark", 0, false, true, "bar", "off", "off",
-        forceTempo = false, tempoBpm = 140, tempoMaxChange = 30, tempoOnlyFaster = true
+        forceTempo = false, tempoBpm = 140, tempoMaxChange = 30, tempoOnlyFaster = true,
+        pushQuiet = false, quietBoost = 50, quietThresholdDb = 9
     )
 
     override fun settings(): SettingsSnapshot = settings
@@ -209,7 +215,10 @@ class FakeBackend : ApiBackend {
             forceTempo = patch.forceTempo ?: settings.forceTempo,
             tempoBpm = patch.tempoBpm ?: settings.tempoBpm,
             tempoMaxChange = patch.tempoMaxChange ?: settings.tempoMaxChange,
-            tempoOnlyFaster = patch.tempoOnlyFaster ?: settings.tempoOnlyFaster
+            tempoOnlyFaster = patch.tempoOnlyFaster ?: settings.tempoOnlyFaster,
+            pushQuiet = patch.pushQuiet ?: settings.pushQuiet,
+            quietBoost = patch.quietBoost ?: settings.quietBoost,
+            quietThresholdDb = patch.quietThresholdDb ?: settings.quietThresholdDb
         )
         return settings
     }
