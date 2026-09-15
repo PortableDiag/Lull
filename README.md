@@ -422,13 +422,13 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 
 ```
 app/src/main/java/com/lull/player/
-├── MainActivity.kt        # library: six browse tabs, drill-down, multi-select, mini-player, playlists
+├── MainActivity.kt        # library: seven browse tabs, drill-down, multi-select, mini-player, playlists
 ├── MediaLibrary.kt        # the MediaStore load, with folder + genre columns
 ├── Browse.kt              # the browse axes and how the library is grouped into them
 ├── GroupAdapter.kt        # rows of folders / artists / albums / genres / playlists
 ├── OpenIntent.kt          # launches from another app: ClipData, folder resolution, single file
 ├── NowPlayingActivity.kt  # full controls: scrub, A-B loop, shuffle, repeat, volume bar/knob
-├── PlaybackService.kt     # MediaSessionService — background playback, crossfade, A-B, trim silence
+├── PlaybackService.kt     # MediaSessionService — background playback, crossfade, A-B, trim silence, Force Tempo
 ├── RepeatAwarePlayer.kt   # makes next/prev restart the track when repeat-one is on
 ├── AbLoop.kt              # the A-B marker pair, shared between the service and the UI
 ├── SleepTimer.kt          # sleep-timer deadline + fade gain, shared the same way
@@ -450,7 +450,7 @@ app/src/main/java/com/lull/player/
 ├── ArtLoader.kt           # async artwork loading + LRU cache
 ├── TrackAdapter.kt        # RecyclerView list adapter
 ├── AudioItem.kt           # audio model + MediaItem mapping
-├── Prefs.kt               # repeat, shuffle mode, volume style, crossfade, mix-audio, trim-silence
+├── Prefs.kt               # repeat, shuffle, volume style, crossfade, mix-audio, trim-silence, Force Tempo
 └── ThemeManager.kt        # light/dark/system theme
 
 app/src/main/java/com/lull/player/api/      # the local API — off unless you switch it on

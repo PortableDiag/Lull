@@ -44,11 +44,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * The library. Six browse axes — tracks, folders, artists, albums, genres and playlists — over one
- * MediaStore load, plus multi-selection and the playlist manager.
+ * The library. Seven browse axes — tracks, folders, artists, albums, genres, playlists and rated —
+ * over one MediaStore load, plus multi-selection and the playlist manager.
  *
  * Two list shapes share one RecyclerView: a [GroupAdapter] of folders/artists/albums/genres/
- * playlists, and a [TrackAdapter] of the tracks inside one of them. Tapping a group drills in;
+ * playlists/ratings, and a [TrackAdapter] of the tracks inside one of them. Tapping a group drills in;
  * Back comes out. [LibraryTab.TRACKS] is the flat list and has no group step.
  */
 class MainActivity : AppCompatActivity() {
