@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Force Tempo. The switch, the tempo to force, the limit on how hard to push a track to reach it,
+    and the tempo Lull believes the playing track has — which is editable, because the number is
+    measured rather than known and the person listening can hear when it is wrong.
+-->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingHorizontal="24dp"
+    android:paddingTop="8dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/tempoEnable"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/force_tempo_enable"
+            android:textSize="16sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/force_tempo_explain"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:text="@string/tempo_target_label"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="13sp"
+            android:letterSpacing="0.06" />
+
+        <TextView
+            android:id="@+id/tempoValue"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:gravity="center"
+            android:textColor="?attr/colorPrimary"
+            android:textSize="26sp"
+            android:fontFamily="sans-serif-medium" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/tempoSlider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="60"
+            android:valueTo="200"
+            android:stepSize="5"
+            app:labelBehavior="gone" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="@string/tempo_max_change_label"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="13sp"
+            android:letterSpacing="0.06" />
+
+        <TextView
+            android:id="@+id/tempoChangeValue"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:gravity="center"
+            android:textColor="?attr/colorPrimary"
+            android:textSize="20sp"
+            android:fontFamily="sans-serif-medium" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/tempoChangeSlider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="5"
+            android:valueTo="100"
+            android:stepSize="5"
+            app:labelBehavior="gone" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/tempo_max_change_hint"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="12sp" />
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/tempoOnlyFaster"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/tempo_only_faster"
+            android:textSize="15sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/tempo_only_faster_hint"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tempoTrackLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/tempo_playing_label"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="13sp"
+            android:letterSpacing="0.06" />
+
+        <EditText
+            android:id="@+id/tempoTrackBpm"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="number"
+            android:maxLength="3"
+            android:importantForAutofill="no"
+            android:hint="@string/tempo_playing_label"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/tempoTrackEffect"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="?attr/colorPrimary"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/tempoTrackHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="8dp"
+            android:text="@string/tempo_playing_hint"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="12sp" />
+    </LinearLayout>
+</ScrollView>

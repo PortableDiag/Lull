@@ -5,9 +5,10 @@ account, no library to import — it plays the audio already on your device, and
 to a server.
 
 What it is *for* is control over how things actually sound and how you actually reach them: an audio
-engine where gapless, crossfade and trim‑silence each compose instead of fighting; star ratings with
-a shuffle that leans on them; seven ways through the same library; sharing that carries a track's
-metadata with it; and a local API that lets a script drive the whole app.
+engine where gapless, crossfade and trim‑silence each compose instead of fighting; a Force Tempo
+that puts a whole playlist on one BPM without touching its pitch; star ratings with a shuffle that
+leans on them; seven ways through the same library; sharing that carries a track's metadata with
+it; and a local API that lets a script drive the whole app.
 
 > Package: `com.lull.player` · minSdk 26 (Android 8.0) · targetSdk 35 · [latest release](https://github.com/PortableDiag/Lull/releases/latest)
 
@@ -18,6 +19,7 @@ metadata with it; and a local API that lets a script drive the whole app.
 | | |
 |---|---|
 | **Gapless, crossfade and trim silence that compose** | Crossfade keeps **two ExoPlayer engines** and overlaps them on an equal‑power curve; trim‑silence runs *below* the transition in the audio sink, so it works with either. Crossfade stands aside for repeat‑one and A‑B, which are requests to hear *this* track. |
+| **Force Tempo** | Set a BPM and every track plays at it — a **pitch‑preserving** stretch, so the track still sounds like itself. A tempo comes from the file's `TBPM` tag or is measured from the audio, and is remembered. A track with **no** steady tempo is found to have none and left alone; a track already fast enough is left alone too. |
 | **Favourites shuffle** | Rate tracks 1–5 and shuffle draws a **weighted** queue — three stars and up come around early and often. It is a **reordering, not a filter**: everything you asked for is still in the queue. |
 | **A local HTTP API** | Off until you switch it on, then key‑gated: a script or an agent can browse, play, queue, rate, build playlists, change settings and share — everything the UI can do. |
 | **Share that carries the metadata** | The file itself goes, plus title, artist, album, genre, duration, size and your rating — a `content://` uri carries none of that, and what arrives otherwise is a filename. |
@@ -46,6 +48,73 @@ Three independent settings shape what you hear between and inside tracks.
 Crossfade and gapless are mutually exclusive by definition, and crossfade is skipped while **repeat-one** or an **A-B loop** is armed (both are requests to hear *this* track, not to blend it into something else).
 
 **Trim silence is not part of that trade-off.** It's ExoPlayer's `SilenceSkippingAudioProcessor`, which lives in the audio sink and shortens near-silent PCM as it plays out — *below* the track transition. So it works on any format with no scan of the file up front, and it composes with whichever of gapless or crossfade is in effect. It's off by default because it changes what you hear, and a rest the artist wrote is not a gap the player should close.
+
+### Force Tempo
+**Set a BPM and everything plays at it.** Switch it on under **Force tempo** in the overflow menu,
+pick a target anywhere from 60 to 200, and each track is sped up as far as it needs to reach it.
+
+It exists for one complaint: a workout playlist where **one slow track is a slow patch in the
+workout**. Everything about the defaults follows from that.
+
+| Control | Default | What it does |
+|---|---|---|
+| **Target tempo** | 140 BPM | The tempo to bring every track to. |
+| **Most a track may be stretched** | 30% | The ceiling. Under about 30% a stretched track just sounds like a track at that tempo; well over it, it sounds stretched. A track that cannot reach the target inside the ceiling goes as far as the ceiling allows rather than further. |
+| **Never slow a track down** | on | A track already at or above the target is left **completely alone**. Slowing a fast track to hit a number would be the feature working against its own purpose. Off, a fast track is slowed to meet the target too. |
+
+The stretch is ExoPlayer's, which time‑stretches with **Sonic** — the pitch does not move, so a
+128 BPM track at 1.09x is still in the key it was recorded in.
+
+**Where a tempo comes from.** The file's **`TBPM` tag** if it has one; otherwise Lull **measures**
+it — half a minute decoded from 30 seconds in (the opening of a track is the least representative
+part of it), reduced to an onset envelope at 10ms resolution and autocorrelated. Either way the
+answer is **remembered per track**, so it is worked out once and never again, and the **next** track
+in the queue is analysed while the current one is playing — so the only track ever heard at the
+wrong speed is the one that was already playing when you switched the feature on.
+
+**A track with no tempo is never touched.** An audiobook, a drone or a field recording is analysed,
+found to have no steady beat, and **written down as having none** — it plays unchanged and is not
+analysed again. "Nothing known yet" and "nothing there" are deliberately two different states, all
+the way out to the API: a player that invented a tempo for a podcast and then played it 30% fast
+would be indefensible.
+
+**The measured number is editable**, because it is a measurement rather than a preference and you
+can hear when it is wrong. The panel shows the playing track's BPM in a field you can type over; a
+number you supply **wins and is never quietly re‑measured**, and clearing it throws the measurement
+away and has another go.
+
+#### Octaves, which is where this gets interesting
+A tempo is only defined up to a factor of two — a track counted at 70 BPM and a track counted at
+140 can be the same felt pace. That ambiguity is handled in **two** places, and it has to be.
+
+- **Choosing the speed.** 70 BPM in double time *is* 140, so such a track is left alone rather than
+  played at 2.0x. But the fold is only accepted when the halved or doubled reading lands **near**
+  the target (within 15%), so a merely slow **95 BPM** track is not excused as a secretly‑fast one
+  on the grounds that 190 is "closer" to 140 in ratio — it gets stretched, which is the point.
+- **Measuring it.** The estimator resolves its own octave with a preference weight around the
+  perceived pulse, plus a tie‑break that takes the **faster** reading when the audio supports both
+  equally: a rhythm that repeats every beat also repeats every two, and if the beat really were the
+  slower one the faster lag would be lining beats up with the gaps and correlating badly. It
+  doesn't. So the half‑lag holding up is not a coincidence.
+
+The lag search runs at **quarter‑frame** resolution rather than whole frames, and that is not a
+precision nicety — it is the difference between a right answer and an octave. A 160 BPM beat lands
+every 37.5 envelope frames, so *neither* lag 37 nor lag 38 lines the rhythm up with itself, while
+lag 75 — two beats — lines it up perfectly. A whole‑frame search reports 80 BPM for that track,
+confidently.
+
+**What it composes with.** Force Tempo is the first thing in Lull that makes **media time and
+wall‑clock time different quantities**. A crossfade is counted by the clock while a track's
+remaining duration is counted in the track, so at 1.3x a fade timed against the wrong one starts
+late and gets cut off; an A‑B loop would overshoot B by the same ratio. Both convert through one
+place. A crossfade also sets the **incoming** track's own speed before it is heard, so two tracks
+at different tempos fade into each other at the two speeds that bring them both to the one you
+asked for — the transition itself has no tempo change in it.
+
+**What it does not do.** It is a tempo per *track*, so a quiet piano bridge inside a 140 BPM rock
+song is still at 140 BPM and is left where it is — Force Tempo removes the slow *tracks* from a
+playlist, not the slow *sections* inside one. Pushing through low‑energy passages is a different
+feature and is on the roadmap.
 
 ### Ratings, and a shuffle that leans on them
 Rate a track **1–5 stars** and the shuffle will take the hint.
@@ -123,7 +192,8 @@ curl -s -H "X-API-Key: $KEY" -X POST 127.0.0.1:8787/api/player/sleep -d '{"minut
 | **Playback** | play (ids, a group, or resume), pause, next, previous, stop, seek, append to the queue, repeat, shuffle *including Favourites*, device volume |
 | **Ratings** | read them all, set one, or rate a batch in one write — `0` clears, exactly as tapping the star a track already sits on does |
 | **Playlists** | create, read, rename, reorder, duplicate, delete, add and remove tracks |
-| **Settings** | theme, crossfade, trim silence, mix-with-other-audio, volume style |
+| **Settings** | theme, crossfade, trim silence, mix-with-other-audio, volume style, Force Tempo |
+| **Tempo** | read a track's BPM and the state of it (known / unknown / none), or override one that came out wrong |
 | **Sleep timer · A-B** | arm and cancel; set and clear a loop region |
 | **Share** | pop the real chooser on the device, or take the file and the text yourself |
 
@@ -212,6 +282,7 @@ Everything persistent is in the **overflow menu** on the library screen, and is 
 | **Crossfade** | Slider, 0–12s (0 = off) | Off |
 | **Trim silence** | Checkbox | Off |
 | **Mix with other audio** | Checkbox | On |
+| **Force tempo** | Off / on, with a target BPM (60–200), a stretch ceiling and a never‑slow‑down switch | Off |
 | **Local API** | Off / on, with a generated key, a port and a LAN switch | Off |
 
 Repeat, shuffle (off / shuffle / **favourites**) and the volume bar/knob choice are set on the **Now Playing** screen, along with the **star rating** for the playing track; the **A-B loop** buttons, the **sleep timer** (moon) and **share** are there too. The sleep timer is the one entry that isn't a persistent setting — a running countdown is intentionally dropped on restart, and only the duration you last picked is remembered.
@@ -261,10 +332,10 @@ It also reports the four seek commands as always‑available so the buttons stay
 
 ### Tests
 ```bash
-./gradlew testDebugUnitTest      # 82 tests
+./gradlew testDebugUnitTest      # 138 tests
 ```
 
-Three things are tested, and they are the three where being nearly right is invisible from the UI:
+Four things are tested, and they are the four where being nearly right is invisible from the UI:
 
 - **`Shuffle`** makes a claim about *probability*, which one run can neither confirm nor refute — so
   the distribution is checked over thousands of draws from a fixed seed.
@@ -273,6 +344,12 @@ Three things are tested, and they are the three where being nearly right is invi
   is unrouted, so the reference cannot drift from the build.
 - **The share text and the formatters**, because that text is the only thing the person on the
   other end of a share actually reads.
+- **Force Tempo** — both halves. The arithmetic has exactly right answers and gets them checked;
+  the **estimator** is run against generated click tracks at known tempos, which is the only way to
+  catch the failure that matters, because it is not a small error but an **octave**. Two of those
+  tests exist because they failed when they were written: a whole-frame lag search reads a 160 BPM
+  track as 80, and a uniform 200 BPM rhythm reads as 100 unless the tie-break prefers the beat over
+  the bar.
 
 ### Debug (no signing needed)
 ```bash
@@ -312,6 +389,11 @@ app/src/main/java/com/lull/player/
 ├── PlaylistStore.kt       # playlists (create/rename/delete/add/remove/reorder) + last-viewed collection
 ├── RatingStore.kt         # 1-5 star ratings by track id, with an in-memory cache
 ├── Shuffle.kt             # the weighted draw behind Favourites shuffle
+├── Tempo.kt               # Force Tempo's arithmetic: source BPM + target -> playback speed
+├── BpmAnalysis.kt         # onset envelope + autocorrelation, and the octave decisions
+├── BpmDetector.kt         # decodes a slice of a track and hands it to BpmAnalysis
+├── Id3Bpm.kt              # the TBPM frame, where the file already knows its tempo
+├── TempoStore.kt          # a tempo per track, including "analysed, hasn't got one"
 ├── Sharing.kt             # sharing a track out: the file, and the metadata that travels with it
 ├── Format.kt              # durations and sizes, the conversions with exact right answers
 ├── Changes.kt             # "something (usually the API) changed what the library should show"
@@ -341,6 +423,11 @@ app/src/main/java/com/lull/player/api/      # the local API — off unless you s
 ## Roadmap ideas
 - Per‑track resume position
 - Sensitivity control for trim silence (how quiet, and for how long, counts as a gap)
+- **Pushing through low‑energy sections**, which is the part of a dead spot Force Tempo cannot
+  reach: a quiet bridge inside a 140 BPM track is still at 140 BPM, so a per‑track speed leaves it
+  exactly where it was. Doing it properly means an energy profile of the whole file rather than a
+  slice of it, and a speed that moves *during* a track.
+- Exporting ratings, playlists and tempos
 
 ---
 

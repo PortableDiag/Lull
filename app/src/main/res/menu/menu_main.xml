@@ -38,6 +38,10 @@
         android:title="@string/crossfade"
         app:showAsAction="never" />
     <item
+        android:id="@+id/action_force_tempo"
+        android:title="@string/force_tempo"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/action_skip_silence"
         android:title="@string/skip_silence"
         android:checkable="true"

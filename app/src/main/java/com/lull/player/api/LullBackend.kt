@@ -27,6 +27,8 @@ import com.lull.player.RatingStore
 import com.lull.player.Shuffle
 import com.lull.player.Sharing
 import com.lull.player.SleepTimer
+import com.lull.player.Tempo
+import com.lull.player.TempoStore
 import com.lull.player.ThemeManager
 import com.lull.player.TrackFacts
 import java.io.ByteArrayInputStream
@@ -123,6 +125,15 @@ class LullBackend(
     }
 
     override fun track(id: Long): TrackFacts? = byId(id)?.let { facts(it) }
+
+    override fun bpm(id: Long): Int = TempoStore.of(context, id)
+
+    /**
+     * The API's half of the correction the panel offers, and held to the same rule: a number given
+     * to us wins over a measured one and is never quietly re-measured. 0 forgets it, which is how
+     * you ask for it to be worked out again.
+     */
+    override fun setBpm(id: Long, bpm: Int) = TempoStore.set(context, id, bpm)
 
     override fun trackStream(id: Long): MediaStream? {
         val item = byId(id) ?: return null
@@ -230,10 +241,20 @@ class LullBackend(
                 shuffle = shuffleName(Prefs.shuffleMode(context)),
                 volume = volume(), maxVolume = maxVolume(),
                 sleepRemainingMs = SleepTimer.remainingMs(),
-                abAMs = AbLoop.aMs, abBMs = AbLoop.bMs
+                abAMs = AbLoop.aMs, abBMs = AbLoop.bMs,
+                // Reported rather than read off the player: a MediaController's playback parameters
+                // are the session's, and Force Tempo sets the speed on the ExoPlayer underneath it.
+                // Recomputing from the same inputs the service used is the honest answer, and it is
+                // also the only one available while nothing is playing yet.
+                speed = Prefs.speedFor(context, tempoOf(item?.mediaId)),
+                sourceBpm = item?.mediaId?.toLongOrNull()?.let { TempoStore.of(context, it) } ?: 0
             )
         }
     }
+
+    /** The playing track's own tempo as [Tempo] wants it — 0 for unknown and for tempo-less. */
+    private fun tempoOf(mediaId: String?): Float =
+        mediaId?.toLongOrNull()?.let { TempoStore.bpmFor(context, it) } ?: 0f
 
     /**
      * Ids, a group key, or both. A group resolves to the tracks in it, in the order the Browse tab
@@ -488,7 +509,11 @@ class LullBackend(
         mixAudio = Prefs.mixAudio(context),
         volumeStyle = if (Prefs.volumeStyle(context) == Prefs.VOL_KNOB) "knob" else "bar",
         repeat = repeatName(Prefs.repeatMode(context)),
-        shuffle = shuffleName(Prefs.shuffleMode(context))
+        shuffle = shuffleName(Prefs.shuffleMode(context)),
+        forceTempo = Prefs.forceTempo(context),
+        tempoBpm = Prefs.tempoBpm(context),
+        tempoMaxChange = Prefs.tempoMaxChange(context),
+        tempoOnlyFaster = Prefs.tempoOnlyFaster(context)
     )
 
     override fun updateSettings(patch: SettingsPatch): SettingsSnapshot = MainThread.get {
@@ -507,6 +532,12 @@ class LullBackend(
         patch.volumeStyle?.let {
             Prefs.setVolumeStyle(context, if (it == "knob") Prefs.VOL_KNOB else Prefs.VOL_BAR)
         }
+        patch.tempoBpm?.let { Prefs.setTempoBpm(context, it) }
+        patch.tempoMaxChange?.let { Prefs.setTempoMaxChange(context, it) }
+        patch.tempoOnlyFaster?.let { Prefs.setTempoOnlyFaster(context, it) }
+        // Last, for the same reason the panel writes it last: the service reacts to each of these
+        // keys, and the switch is the one that makes it act on all of them.
+        patch.forceTempo?.let { Prefs.setForceTempo(context, it) }
         settings()
     }
 

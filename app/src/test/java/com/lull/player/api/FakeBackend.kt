@@ -54,6 +54,15 @@ class FakeBackend : ApiBackend {
 
     override fun track(id: Long): TrackFacts? = tracks[id]
 
+    val tempos = HashMap<Long, Int>()
+
+    override fun bpm(id: Long): Int = tempos[id] ?: com.lull.player.TempoStore.UNKNOWN
+
+    override fun setBpm(id: Long, bpm: Int) {
+        calls += "setBpm($id,$bpm)"
+        if (bpm == 0) tempos.remove(id) else tempos[id] = bpm
+    }
+
     override fun trackStream(id: Long): MediaStream? {
         val t = tracks[id] ?: return null
         val bytes = "audio-bytes-for-$id".toByteArray()
@@ -182,7 +191,10 @@ class FakeBackend : ApiBackend {
         return true
     }
 
-    private var settings = SettingsSnapshot("dark", 0, false, true, "bar", "off", "off")
+    private var settings = SettingsSnapshot(
+        "dark", 0, false, true, "bar", "off", "off",
+        forceTempo = false, tempoBpm = 140, tempoMaxChange = 30, tempoOnlyFaster = true
+    )
 
     override fun settings(): SettingsSnapshot = settings
 
@@ -193,7 +205,11 @@ class FakeBackend : ApiBackend {
             crossfadeSec = patch.crossfadeSec ?: settings.crossfadeSec,
             skipSilence = patch.skipSilence ?: settings.skipSilence,
             mixAudio = patch.mixAudio ?: settings.mixAudio,
-            volumeStyle = patch.volumeStyle ?: settings.volumeStyle
+            volumeStyle = patch.volumeStyle ?: settings.volumeStyle,
+            forceTempo = patch.forceTempo ?: settings.forceTempo,
+            tempoBpm = patch.tempoBpm ?: settings.tempoBpm,
+            tempoMaxChange = patch.tempoMaxChange ?: settings.tempoMaxChange,
+            tempoOnlyFaster = patch.tempoOnlyFaster ?: settings.tempoOnlyFaster
         )
         return settings
     }

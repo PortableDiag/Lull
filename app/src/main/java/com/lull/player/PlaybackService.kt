@@ -13,6 +13,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import java.util.concurrent.Executors
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -29,6 +30,9 @@ import kotlin.math.sin
  *  - crossfade, which is *by definition* two tracks sounding at once. One ExoPlayer decodes one
  *    stream, so we keep two engines: one audible, one warming up the next track. At the end of a
  *    fade the standby engine becomes the session's player and the roles swap.
+ *  - Force Tempo, which needs a *per track* speed and therefore something that knows which track
+ *    is about to play — see [applyTempo]. It is here rather than in the UI for the usual reason:
+ *    the speed has to be right on a transition that happens with the app closed.
  *
  * With crossfade set to 0 (the default) the second engine is never started and playback follows
  * exactly the same path it did before the feature existed — which is what keeps gapless intact,
@@ -65,11 +69,25 @@ class PlaybackService : MediaSessionService() {
     // toggled through preferences and picked up here, so they take effect without restarting
     // playback: audio focus handling for "Mix with other audio", skip-silence for "Trim silence".
     private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        when (key) {
-            Prefs.KEY_MIX_AUDIO -> applyAudioFocus()
-            Prefs.KEY_SKIP_SILENCE -> applySkipSilence()
+        when {
+            key == Prefs.KEY_MIX_AUDIO -> applyAudioFocus()
+            key == Prefs.KEY_SKIP_SILENCE -> applySkipSilence()
+            key in Prefs.TEMPO_KEYS -> applyTempo()
         }
     }
+
+    /**
+     * Working a tempo out means decoding audio, which is not something to do on the thread that is
+     * also playing it. One worker, so a queue of unanalysed tracks is worked through in order
+     * rather than all at once on a phone that has other things to do.
+     */
+    private val tempoWorker = Executors.newSingleThreadExecutor()
+
+    /** Ids currently with the worker, so a slow analysis is not queued a second time behind itself. */
+    private val analysing = HashSet<Long>()
+
+    /** A tempo corrected by hand, or one the worker has just written down, changes the speed now. */
+    private val tempoListener: () -> Unit = { handler.post { applyTempo() } }
 
     private val abListener: () -> Unit = { syncAbWatcher() }
 
@@ -103,6 +121,7 @@ class PlaybackService : MediaSessionService() {
         prefs().registerOnSharedPreferenceChangeListener(prefsListener)
         AbLoop.addListener(abListener)
         SleepTimer.addListener(sleepListener)
+        TempoStore.addListener(tempoListener)
         handler.post(ticker)
     }
 
@@ -118,6 +137,7 @@ class PlaybackService : MediaSessionService() {
             // but timing is not exact). Hand over now rather than let it play the next track
             // underneath the one already fading in.
             if (crossfading) finishCrossfade()
+            applyTempo()
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -137,6 +157,66 @@ class PlaybackService : MediaSessionService() {
             }
         }
     }
+
+    // ---------------- Force Tempo ----------------
+
+    /**
+     * Points the audible engine at the speed this track should play at, and gets the *next* track's
+     * tempo worked out while there is still a track's worth of time to do it in.
+     *
+     * The prefetch is the difference between the feature working and the feature being noticeable.
+     * Analysis takes a fraction of a second, but a fraction of a second at the wrong speed is at
+     * the very start of a track, which is exactly where a change of speed is audible as a lurch.
+     * Doing the next track now means the only track ever played at the wrong speed is the first one
+     * after you switch the feature on — and that one is already playing when you switch it.
+     *
+     * Speed is set on the ExoPlayer rather than through the session, so it composes with everything
+     * else here: it is pitch-preserving (ExoPlayer time-stretches with Sonic), independent of the
+     * volume gains crossfade and the sleep timer multiply together, and below the audio sink where
+     * trim-silence works.
+     */
+    private fun applyTempo() {
+        val a = active ?: return
+        a.setPlaybackSpeed(speedFor(a.currentMediaItem))
+        requestDetection(a.currentMediaItem)
+        val next = a.nextMediaItemIndex
+        if (next != C.INDEX_UNSET && next < a.mediaItemCount) requestDetection(a.getMediaItemAt(next))
+    }
+
+    /** What [item] should play at: 1.0 with the feature off, and 1.0 for a track with no tempo. */
+    private fun speedFor(item: MediaItem?): Float {
+        val id = item?.mediaId?.toLongOrNull() ?: return Tempo.UNCHANGED
+        return Prefs.speedFor(this, TempoStore.bpmFor(this, id))
+    }
+
+    /**
+     * Queues a track for analysis, at most once.
+     *
+     * Nothing is analysed while the feature is off: switching it on is the moment the work becomes
+     * worth doing, and a player that quietly decoded every track you played on the chance you might
+     * one day want this would be spending your battery on a guess.
+     */
+    private fun requestDetection(item: MediaItem?) {
+        if (!Prefs.forceTempo(this)) return
+        val id = item?.mediaId?.toLongOrNull() ?: return
+        val uri = item.localConfiguration?.uri ?: return
+        if (!TempoStore.needsDetection(this, id)) return
+        if (!analysing.add(id)) return
+        tempoWorker.execute {
+            val bpm = BpmDetector.detect(this, uri)
+            handler.post {
+                analysing.remove(id)
+                // UNKNOWN means the analysis itself failed — a file that would not open, a codec
+                // that would not start. Writing that down would retire the track permanently on
+                // the strength of one bad moment, so it is simply left for next time.
+                if (bpm != TempoStore.UNKNOWN) TempoStore.setDetected(this, id, bpm)
+            }
+        }
+    }
+
+    /** The engine's speed, floored so that it can never be divided by zero. */
+    private fun speedOf(player: ExoPlayer): Float =
+        player.playbackParameters.speed.coerceAtLeast(Tempo.MIN_SPEED)
 
     // ---------------- Crossfade ----------------
 
@@ -185,11 +265,19 @@ class PlaybackService : MediaSessionService() {
         if (next == C.INDEX_UNSET) return                 // last track with repeat off — just end.
         if (next == a.currentMediaItemIndex) return       // repeat-all on a one-track queue.
 
+        // Force Tempo makes media time and wall-clock time two different things, and the numbers
+        // in this method are a mix of both: the fade is counted by the clock (see [stepCrossfade]),
+        // while duration and position are counted in the track. At 1.3x a track's last 6 seconds
+        // of *music* is 4.6 seconds of *fade*, and a crossfade timed against the wrong one either
+        // starts late and gets cut off by the transition, or starts early and runs long.
+        val speed = speedOf(a)
+        val remaining = Tempo.wallClockMs(duration - a.currentPosition, speed)
+
         // Don't let a long crossfade swallow a short track: a fade is capped at a third of the
         // outgoing track, so a 12s setting over a 20s interlude becomes a ~6s fade, not a wash.
-        val span = minOf(configured, duration / 3)
+        val span = minOf(configured, Tempo.wallClockMs(duration, speed) / 3)
         if (span < MIN_FADE_MS) return
-        if (duration - a.currentPosition > span) return
+        if (remaining > span) return
 
         // Don't open a transition the sleep timer is about to close. Fading a new track in during
         // the last seconds before everything stops is wasted work, and it would make the track you
@@ -213,6 +301,10 @@ class PlaybackService : MediaSessionService() {
         b.repeatMode = a.repeatMode
         b.shuffleModeEnabled = a.shuffleModeEnabled
         b.setMediaItems(items, nextIndex, 0L)
+        // The incoming track's own speed, set before it is heard. Two tracks with different tempos
+        // fade into each other at the two speeds that bring them both to the one you asked for,
+        // which is the only way the transition itself doesn't have a tempo change in it.
+        b.setPlaybackSpeed(speedFor(items[nextIndex]))
         crossActive = 1f
         crossStandby = 0f
         applyVolumes()
@@ -257,6 +349,10 @@ class PlaybackService : MediaSessionService() {
 
         session.setPlayer(wrappers[activeIndex]!!)
         applyAudioFocus()   // focus is only requested once the outgoing engine has let go of it.
+        // The engine that just became audible already carries the right speed (set before it was
+        // faded in), but nothing has yet looked ahead from its position in the queue — and the
+        // transition listener stays quiet here, because for that engine no item changed.
+        applyTempo()
     }
 
     /** User paused, seeked or skipped mid-fade — drop the incoming track and restore full volume. */
@@ -321,8 +417,11 @@ class PlaybackService : MediaSessionService() {
                 handler.postDelayed(this, AB_POLL_MIN_MS)
             } else {
                 // Sleep until we expect to reach B, but wake at least ~4x/sec so a seek or a pause
-                // during the region doesn't leave us sitting on a stale deadline.
-                handler.postDelayed(this, (b - position).coerceIn(AB_POLL_MIN_MS, AB_POLL_MAX_MS))
+                // during the region doesn't leave us sitting on a stale deadline. B is a position
+                // in the track and the delay is a wall-clock one, so Force Tempo's speed converts
+                // between them — otherwise a forced track overshoots B by the ratio of the two.
+                val delay = Tempo.wallClockMs(b - position, speedOf(player))
+                handler.postDelayed(this, delay.coerceIn(AB_POLL_MIN_MS, AB_POLL_MAX_MS))
             }
         }
     }
@@ -383,6 +482,8 @@ class PlaybackService : MediaSessionService() {
         AbLoop.clear()
         SleepTimer.removeListener(sleepListener)
         SleepTimer.cancel()
+        TempoStore.removeListener(tempoListener)
+        tempoWorker.shutdownNow()
         prefs().unregisterOnSharedPreferenceChangeListener(prefsListener)
 
         mediaSession?.release()

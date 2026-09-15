@@ -1,7 +1,10 @@
 package com.lull.player.api
 
+import com.lull.player.BpmAnalysis
+import com.lull.player.Prefs
 import com.lull.player.RatingStore
 import com.lull.player.Sharing
+import com.lull.player.TempoStore
 import com.lull.player.TrackFacts
 import org.json.JSONArray
 import org.json.JSONObject
@@ -38,6 +41,10 @@ class ApiRouter(
         private val THEMES = setOf("system", "light", "dark")
         private val VOLUME_STYLES = setOf("bar", "knob")
         private val TABS = setOf("folders", "artists", "albums", "genres", "playlists", "rated")
+
+        private val BPM_RANGE_HELP =
+            "${BpmAnalysis.MIN_BPM.toInt()} to ${BpmAnalysis.MAX_BPM.toInt()}, or 0 to forget it " +
+                "and have it worked out again"
     }
 
     fun handle(request: ApiRequest): ApiResponse = try {
@@ -167,6 +174,19 @@ class ApiRouter(
                         .put("text", Sharing.describe(facts))
                         .put("file", "/api/tracks/${facts.id}/file")
                 )
+            }
+
+            rest.size == 2 && rest[1] == "bpm" -> {
+                val trackId = id(rest[0])
+                if (backend.track(trackId) == null) throw notFound("track", rest[0])
+                when (r.method) {
+                    "GET" -> ApiResponse.json(bpmJson(trackId, backend.bpm(trackId)))
+                    "PUT", "POST" -> {
+                        backend.setBpm(trackId, requireBpm(r.json().opt("bpm")))
+                        ApiResponse.json(bpmJson(trackId, backend.bpm(trackId)))
+                    }
+                    else -> methodNotAllowed(r, "GET", "PUT", "POST")
+                }
             }
 
             rest.size == 2 && rest[1] == "rating" -> {
@@ -373,6 +393,37 @@ class ApiRouter(
         return stars
     }
 
+    /**
+     * 0 clears a tempo, which puts the track back in the queue to be worked out again — the same
+     * thing emptying the field in the panel does. Anything else has to be a tempo that exists.
+     */
+    private fun requireBpm(raw: Any?): Int {
+        val bpm = when (raw) {
+            is Number -> raw.toInt()
+            is String -> raw.toIntOrNull()
+            else -> null
+        } ?: throw ApiException(400, "bpm required", BPM_RANGE_HELP)
+        if (bpm == 0) return 0
+        if (bpm < BpmAnalysis.MIN_BPM.toInt() || bpm > BpmAnalysis.MAX_BPM.toInt())
+            throw ApiException(400, "bpm out of range: $bpm", BPM_RANGE_HELP)
+        return bpm
+    }
+
+    /**
+     * The three states spelled out, because `0` and `-1` are not obviously different to a caller
+     * and the difference is the whole point: one means come back later, the other means don't.
+     */
+    private fun bpmJson(id: Long, bpm: Int): JSONObject = JSONObject()
+        .put("id", id)
+        .put("bpm", if (bpm > 0) bpm else JSONObject.NULL)
+        .put(
+            "state", when {
+                bpm > 0 -> "known"
+                bpm == TempoStore.NONE -> "none"
+                else -> "unknown"
+            }
+        )
+
     // ---------------- Playlists ----------------
 
     private fun playlists(r: ApiRequest, rest: List<String>): ApiResponse = when {
@@ -465,12 +516,29 @@ class ApiRouter(
             val crossfade = obj.optIntOrNull("crossfadeSec") ?: obj.optIntOrNull("crossfade_sec")
             if (crossfade != null && crossfade !in 0..com.lull.player.Prefs.MAX_CROSSFADE_SEC)
                 throw ApiException(400, "crossfadeSec out of range: $crossfade", "0 to ${com.lull.player.Prefs.MAX_CROSSFADE_SEC}")
+            val tempoBpm = obj.optIntOrNull("tempoBpm") ?: obj.optIntOrNull("tempo_bpm")
+            if (tempoBpm != null && tempoBpm !in Prefs.MIN_TEMPO_BPM..Prefs.MAX_TEMPO_BPM)
+                throw ApiException(
+                    400, "tempoBpm out of range: $tempoBpm",
+                    "${Prefs.MIN_TEMPO_BPM} to ${Prefs.MAX_TEMPO_BPM}"
+                )
+            val tempoChange = obj.optIntOrNull("tempoMaxChange") ?: obj.optIntOrNull("tempo_max_change")
+            if (tempoChange != null && tempoChange !in Prefs.MIN_TEMPO_CHANGE..Prefs.MAX_TEMPO_CHANGE)
+                throw ApiException(
+                    400, "tempoMaxChange out of range: $tempoChange",
+                    "${Prefs.MIN_TEMPO_CHANGE} to ${Prefs.MAX_TEMPO_CHANGE}, a percentage"
+                )
             val patch = SettingsPatch(
                 theme = theme,
                 crossfadeSec = crossfade,
                 skipSilence = obj.optBooleanOrNull("skipSilence") ?: obj.optBooleanOrNull("skip_silence"),
                 mixAudio = obj.optBooleanOrNull("mixAudio") ?: obj.optBooleanOrNull("mix_audio"),
-                volumeStyle = style
+                volumeStyle = style,
+                forceTempo = obj.optBooleanOrNull("forceTempo") ?: obj.optBooleanOrNull("force_tempo"),
+                tempoBpm = tempoBpm,
+                tempoMaxChange = tempoChange,
+                tempoOnlyFaster = obj.optBooleanOrNull("tempoOnlyFaster")
+                    ?: obj.optBooleanOrNull("tempo_only_faster")
             )
             if (patch == SettingsPatch()) throw ApiException(
                 400, "nothing to change", "GET /api/settings shows what there is to set"
@@ -546,6 +614,10 @@ class ApiRouter(
         .put("volume_style", s.volumeStyle)
         .put("repeat", s.repeat)
         .put("shuffle", s.shuffle)
+        .put("force_tempo", s.forceTempo)
+        .put("tempo_bpm", s.tempoBpm)
+        .put("tempo_max_change", s.tempoMaxChange)
+        .put("tempo_only_faster", s.tempoOnlyFaster)
 
     private fun playerJson(p: PlayerSnapshot): JSONObject = JSONObject()
         .put("connected", p.connected)
@@ -567,6 +639,11 @@ class ApiRouter(
         .put("sleep_remaining_ms", p.sleepRemainingMs)
         .put("ab_a_ms", p.abAMs)
         .put("ab_b_ms", p.abBMs)
+        .put("speed", p.speed.toDouble())
+        // Rendered the same way GET /api/tracks/{id}/bpm renders it: a tempo, or nothing. The
+        // store's -1 means "analysed, hasn't got one", which is a distinction that belongs on the
+        // endpoint that explains it rather than as a magic number in a field called source_bpm.
+        .put("source_bpm", if (p.sourceBpm > 0) p.sourceBpm else JSONObject.NULL)
 
     // ---------------- Small helpers ----------------
 

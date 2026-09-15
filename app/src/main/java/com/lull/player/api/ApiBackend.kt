@@ -29,6 +29,15 @@ interface ApiBackend {
 
     fun artworkStream(id: Long): MediaStream?
 
+    /**
+     * One track's tempo in beats per minute: 0 where nothing is known yet, -1 where it has been
+     * analysed and hasn't got one. See `TempoStore` for why those are two different answers.
+     */
+    fun bpm(id: Long): Int
+
+    /** Overrides a track's tempo, the way typing over the number in the panel does; 0 forgets it. */
+    fun setBpm(id: Long, bpm: Int)
+
     /** Null for a browse axis that doesn't exist; an empty list for one that is simply empty. */
     fun groups(tab: String): List<GroupSummary>?
 
@@ -129,7 +138,11 @@ data class PlayerSnapshot(
     val maxVolume: Int,
     val sleepRemainingMs: Long,
     val abAMs: Long,
-    val abBMs: Long
+    val abBMs: Long,
+    /** What the playing track is actually running at — 1.0 unless Force Tempo is moving it. */
+    val speed: Float = 1f,
+    /** The playing track's own tempo, as [ApiBackend.bpm] reports it. */
+    val sourceBpm: Int = 0
 )
 
 data class PlaylistView(val id: Long, val name: String, val trackIds: List<Long>)
@@ -141,7 +154,11 @@ data class SettingsSnapshot(
     val mixAudio: Boolean,
     val volumeStyle: String,
     val repeat: String,
-    val shuffle: String
+    val shuffle: String,
+    val forceTempo: Boolean = false,
+    val tempoBpm: Int = 0,
+    val tempoMaxChange: Int = 0,
+    val tempoOnlyFaster: Boolean = true
 )
 
 /** Null means "leave that one alone" — a PATCH of one field must not reset the other six. */
@@ -150,7 +167,11 @@ data class SettingsPatch(
     val crossfadeSec: Int? = null,
     val skipSilence: Boolean? = null,
     val mixAudio: Boolean? = null,
-    val volumeStyle: String? = null
+    val volumeStyle: String? = null,
+    val forceTempo: Boolean? = null,
+    val tempoBpm: Int? = null,
+    val tempoMaxChange: Int? = null,
+    val tempoOnlyFaster: Boolean? = null
 )
 
 /**

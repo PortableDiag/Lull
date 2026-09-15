@@ -20,6 +20,8 @@ object ApiDocs {
         "GET    /api/tracks/{id}/art",
         "GET    /api/tracks/{id}/share",
         "PUT    /api/tracks/{id}/rating",
+        "GET    /api/tracks/{id}/bpm",
+        "PUT    /api/tracks/{id}/bpm",
         "GET    /api/groups/{folders|artists|albums|genres|playlists|rated}",
         "GET    /api/group?key=",
         "GET    /api/player",
@@ -130,7 +132,34 @@ around early and often. It reorders the queue rather than filtering it.
 ## Settings
 
 `GET /api/settings`, and `PATCH` any of `theme` (`system\|light\|dark`), `crossfadeSec` (0–12),
-`skipSilence`, `mixAudio`, `volumeStyle` (`bar\|knob`).
+`skipSilence`, `mixAudio`, `volumeStyle` (`bar\|knob`), plus Force Tempo: `forceTempo`,
+`tempoBpm` (60–200), `tempoMaxChange` (5–100, a percentage) and `tempoOnlyFaster`.
+
+## Force Tempo
+
+Plays every track at one tempo, by speeding it up without changing its pitch — a workout playlist
+with no slow patches in it.
+
+```bash
+curl -s -H "X-API-Key: ${'$'}KEY" -X PATCH 127.0.0.1:8787/api/settings \
+  -d '{"forceTempo":true,"tempoBpm":140,"tempoMaxChange":30}'
+```
+
+`GET /api/player` then reports the `speed` the playing track is running at and its own
+`source_bpm`.
+
+A track's tempo is read from its `TBPM` tag where it has one and measured from the audio where it
+does not, then remembered. `GET /api/tracks/{id}/bpm` reports it as one of three states:
+
+| `state` | meaning |
+|---|---|
+| `known` | `bpm` is its tempo |
+| `unknown` | nobody has worked it out yet — it plays unchanged until they do |
+| `none` | it has been analysed and has no steady tempo (spoken word, drone). It plays unchanged. |
+
+`PUT /api/tracks/{id}/bpm` with `{"bpm":128}` overrides a measurement that came out wrong, and it
+sticks: nothing re-measures a tempo somebody supplied. `{"bpm":0}` forgets it and lets the next
+play work it out afresh.
 
 ## Share
 

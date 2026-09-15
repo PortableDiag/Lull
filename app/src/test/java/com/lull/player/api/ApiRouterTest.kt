@@ -341,6 +341,76 @@ class ApiRouterTest {
 
     // ---------------- Ratings ----------------
 
+    // ---------------- Force Tempo ----------------
+
+    @Test
+    fun `a tempo nobody has worked out yet says so instead of guessing`() {
+        val r = call("GET", "/api/tracks/1/bpm").obj()
+        assertEquals("unknown", r.getString("state"))
+        assertTrue(r.isNull("bpm"))
+    }
+
+    @Test
+    fun `a tempo can be set and read back`() {
+        assertEquals(200, call("PUT", "/api/tracks/1/bpm", """{"bpm":128}""").status)
+        val r = call("GET", "/api/tracks/1/bpm").obj()
+        assertEquals("known", r.getString("state"))
+        assertEquals(128, r.getInt("bpm"))
+    }
+
+    @Test
+    fun `zero forgets a tempo rather than setting one`() {
+        call("PUT", "/api/tracks/1/bpm", """{"bpm":128}""")
+        assertEquals(200, call("PUT", "/api/tracks/1/bpm", """{"bpm":0}""").status)
+        assertEquals("unknown", call("GET", "/api/tracks/1/bpm").obj().getString("state"))
+    }
+
+    @Test
+    fun `a tempo no music has is refused`() {
+        assertEquals(400, call("PUT", "/api/tracks/1/bpm", """{"bpm":900}""").status)
+        assertEquals(400, call("PUT", "/api/tracks/1/bpm", """{"bpm":2}""").status)
+        assertEquals(400, call("PUT", "/api/tracks/1/bpm", "{}").status)
+    }
+
+    @Test
+    fun `a tempo for a track that is not there is a 404`() {
+        assertEquals(404, call("GET", "/api/tracks/99/bpm").status)
+        assertEquals(404, call("PUT", "/api/tracks/99/bpm", """{"bpm":128}""").status)
+    }
+
+    @Test
+    fun `force tempo is patched through settings and comes back in them`() {
+        val r = call(
+            "PATCH", "/api/settings",
+            """{"forceTempo":true,"tempoBpm":150,"tempoMaxChange":40,"tempoOnlyFaster":false}"""
+        ).obj()
+        assertTrue(r.getBoolean("force_tempo"))
+        assertEquals(150, r.getInt("tempo_bpm"))
+        assertEquals(40, r.getInt("tempo_max_change"))
+        assertFalse(r.getBoolean("tempo_only_faster"))
+    }
+
+    @Test
+    fun `snake case works for the tempo settings too`() {
+        val r = call("PATCH", "/api/settings", """{"force_tempo":true,"tempo_bpm":110}""").obj()
+        assertTrue(r.getBoolean("force_tempo"))
+        assertEquals(110, r.getInt("tempo_bpm"))
+    }
+
+    @Test
+    fun `a tempo setting outside the slider's range is refused`() {
+        assertEquals(400, call("PATCH", "/api/settings", """{"tempoBpm":20}""").status)
+        assertEquals(400, call("PATCH", "/api/settings", """{"tempoBpm":400}""").status)
+        assertEquals(400, call("PATCH", "/api/settings", """{"tempoMaxChange":300}""").status)
+    }
+
+    @Test
+    fun `the player reports the speed it is running at`() {
+        val r = call("GET", "/api/player").obj()
+        assertTrue(r.has("speed"))
+        assertTrue(r.has("source_bpm"))
+    }
+
     @Test
     fun `ratings come back by id and counted by star`() {
         val r = call("GET", "/api/ratings").obj()

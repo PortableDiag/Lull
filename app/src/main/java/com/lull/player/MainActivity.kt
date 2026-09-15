@@ -23,6 +23,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
+import androidx.core.widget.addTextChangedListener
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
@@ -37,6 +38,7 @@ import com.lull.player.api.ApiService
 import com.lull.player.api.ApiSettingsDialog
 import com.lull.player.databinding.ActivityMainBinding
 import com.lull.player.databinding.DialogCrossfadeBinding
+import com.lull.player.databinding.DialogTempoBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -690,6 +692,13 @@ class MainActivity : AppCompatActivity() {
             if (SleepTimer.isArmed)
                 getString(R.string.sleep_timer_menu, TrackAdapter.formatDuration(SleepTimer.remainingMs()))
             else getString(R.string.sleep_timer)
+
+        // Same reasoning: a tempo being forced is a thing the music is audibly doing, so the menu
+        // says which one rather than making you open the panel to find out.
+        menu.findItem(R.id.action_force_tempo)?.title =
+            if (Prefs.forceTempo(this))
+                getString(R.string.force_tempo_menu, Prefs.tempoBpm(this))
+            else getString(R.string.force_tempo)
         return super.onPrepareOptionsMenu(menu)
     }
 
@@ -702,6 +711,7 @@ class MainActivity : AppCompatActivity() {
             R.id.action_sleep_timer -> { SleepTimerDialog.show(this); true }
             R.id.action_api -> { ApiSettingsDialog.show(this); true }
             R.id.action_crossfade -> { showCrossfadeDialog(); true }
+            R.id.action_force_tempo -> { showTempoDialog(); true }
             R.id.action_mix_audio -> {
                 val on = !item.isChecked
                 item.isChecked = on
@@ -927,6 +937,113 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    /**
+     * The Force Tempo panel: what tempo to force, how hard to push a track to reach it, and what
+     * Lull currently believes the playing track's own tempo is.
+     *
+     * That last field is editable, and it is the important one. Every other setting in Lull is a
+     * preference, but a BPM is a *measurement* — [BpmDetector] is right most of the time and wrong
+     * some of the time, and the person listening can hear which. Typing over the number fixes that
+     * track for good; clearing it throws the measurement away and has another go. Without this the
+     * only remedy for one mis-detected track would be turning the whole feature off.
+     */
+    private fun showTempoDialog() {
+        val view = DialogTempoBinding.inflate(layoutInflater)
+        val playingId = controller?.currentMediaItem?.mediaId?.toLongOrNull()
+
+        view.tempoEnable.isChecked = Prefs.forceTempo(this)
+        view.tempoSlider.valueFrom = Prefs.MIN_TEMPO_BPM.toFloat()
+        view.tempoSlider.valueTo = Prefs.MAX_TEMPO_BPM.toFloat()
+        view.tempoSlider.stepSize = Prefs.TEMPO_BPM_STEP.toFloat()
+        view.tempoSlider.value = Prefs.tempoBpm(this).toFloat()
+        view.tempoChangeSlider.valueFrom = Prefs.MIN_TEMPO_CHANGE.toFloat()
+        view.tempoChangeSlider.valueTo = Prefs.MAX_TEMPO_CHANGE.toFloat()
+        view.tempoChangeSlider.value = Prefs.tempoMaxChange(this).toFloat()
+        view.tempoOnlyFaster.isChecked = Prefs.tempoOnlyFaster(this)
+
+        val storedBpm = playingId?.let { TempoStore.of(this, it) } ?: TempoStore.UNKNOWN
+        if (storedBpm > 0) view.tempoTrackBpm.setText(storedBpm.toString())
+
+        // Everything on this panel changes the same one sentence at the bottom — "this track, at
+        // these settings, will play like *this*" — so one function redraws it and every control
+        // calls that function.
+        val refresh = {
+            view.tempoValue.text = getString(R.string.tempo_bpm, view.tempoSlider.value.toInt())
+            view.tempoChangeValue.text =
+                getString(R.string.tempo_max_change, view.tempoChangeSlider.value.toInt())
+            view.tempoTrackEffect.text = effectLine(
+                playingId = playingId,
+                typedBpm = view.tempoTrackBpm.text.toString().toIntOrNull(),
+                storedBpm = storedBpm,
+                targetBpm = view.tempoSlider.value.toInt(),
+                maxChange = view.tempoChangeSlider.value.toInt(),
+                onlyFaster = view.tempoOnlyFaster.isChecked
+            )
+        }
+        view.tempoSlider.addOnChangeListener { _, _, _ -> refresh() }
+        view.tempoChangeSlider.addOnChangeListener { _, _, _ -> refresh() }
+        view.tempoOnlyFaster.setOnCheckedChangeListener { _, _ -> refresh() }
+        view.tempoTrackBpm.addTextChangedListener(afterTextChanged = { refresh() })
+        if (playingId == null) {
+            view.tempoTrackLabel.visibility = View.GONE
+            view.tempoTrackBpm.visibility = View.GONE
+            view.tempoTrackHint.visibility = View.GONE
+        }
+        refresh()
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.force_tempo)
+            .setView(view.root)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val on = view.tempoEnable.isChecked
+                val bpm = view.tempoSlider.value.toInt()
+                Prefs.setTempoBpm(this, bpm)
+                Prefs.setTempoMaxChange(this, view.tempoChangeSlider.value.toInt())
+                Prefs.setTempoOnlyFaster(this, view.tempoOnlyFaster.isChecked)
+                // Written last, so the service re-applies once against settings that are all in
+                // place rather than once per key as they land.
+                Prefs.setForceTempo(this, on)
+
+                if (playingId != null) {
+                    val typed = view.tempoTrackBpm.text.toString().toIntOrNull()
+                    // An emptied field is "forget what you measured", not "no change".
+                    if (typed != storedBpm.takeIf { it > 0 }) {
+                        TempoStore.set(this, playingId, typed ?: TempoStore.UNKNOWN)
+                    }
+                }
+                toast(
+                    if (on) getString(R.string.tempo_set, bpm)
+                    else getString(R.string.tempo_unset)
+                )
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /** "128 BPM · playing at 1.09x (140 BPM)" — the whole feature, for the track you can hear. */
+    private fun effectLine(
+        playingId: Long?,
+        typedBpm: Int?,
+        storedBpm: Int,
+        targetBpm: Int,
+        maxChange: Int,
+        onlyFaster: Boolean
+    ): String {
+        if (playingId == null) return getString(R.string.tempo_nothing_playing)
+        val source = typedBpm ?: storedBpm.takeIf { it > 0 } ?: return when (storedBpm) {
+            TempoStore.NONE -> getString(R.string.tempo_none)
+            else -> getString(R.string.tempo_working)
+        }
+        val speed = Tempo.speedFor(source.toFloat(), targetBpm, maxChange, onlyFaster)
+        if (speed == Tempo.UNCHANGED) return getString(R.string.tempo_effect_unchanged, source)
+        return getString(
+            R.string.tempo_effect,
+            source,
+            Tempo.formatSpeed(speed),
+            Tempo.effectiveBpm(source.toFloat(), speed).toInt()
+        )
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()

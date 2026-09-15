@@ -176,4 +176,25 @@
     <string name="api_channel">Local API</string>
     <string name="api_port_invalid">Pick a port between 1024 and 65535</string>
     <string name="api_docs_hint">GET /api/docs lists every endpoint.</string>
+    <!-- Force Tempo -->
+    <string name="force_tempo">Force tempo</string>
+    <string name="force_tempo_menu">Force tempo · %1$d BPM</string>
+    <string name="force_tempo_enable">Play every track at one tempo</string>
+    <string name="force_tempo_explain">Speeds a track up so that it runs at the tempo you set, without changing its pitch. Meant for exercising: the slow track in the middle of a playlist stops being a slow patch in the middle of a workout.</string>
+    <string name="tempo_target_label">TARGET TEMPO</string>
+    <string name="tempo_bpm">%1$d BPM</string>
+    <string name="tempo_max_change_label">MOST A TRACK MAY BE STRETCHED</string>
+    <string name="tempo_max_change">%1$d%%</string>
+    <string name="tempo_max_change_hint">Under about 30 percent a stretched track just sounds like a track at that tempo. Well over it, it sounds stretched.</string>
+    <string name="tempo_only_faster">Never slow a track down</string>
+    <string name="tempo_only_faster_hint">On, a track already at or above the target is left alone. Off, a fast track is slowed to meet the target too.</string>
+    <string name="tempo_playing_label">TEMPO OF THE PLAYING TRACK</string>
+    <string name="tempo_playing_hint">Worked out from the file — from its BPM tag if it has one, otherwise by measuring the beat. Type over it to correct it; clear it to have another go.</string>
+    <string name="tempo_effect">%1$d BPM · playing at %2$s (%3$d BPM)</string>
+    <string name="tempo_effect_unchanged">%1$d BPM · already at tempo, playing unchanged</string>
+    <string name="tempo_working">Working out its tempo…</string>
+    <string name="tempo_none">No steady tempo in this one — it plays unchanged</string>
+    <string name="tempo_nothing_playing">Nothing is playing</string>
+    <string name="tempo_set">Forcing %1$d BPM</string>
+    <string name="tempo_unset">Force tempo off</string>
 </resources>

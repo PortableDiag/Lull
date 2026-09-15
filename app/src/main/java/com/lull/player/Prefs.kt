@@ -23,6 +23,38 @@ object Prefs {
     const val KEY_MIX_AUDIO = "mix_audio"
     const val KEY_SKIP_SILENCE = "skip_silence"
 
+    // ---------------- Force Tempo ----------------
+
+    const val KEY_FORCE_TEMPO = "force_tempo"
+    const val KEY_TEMPO_BPM = "tempo_bpm"
+    const val KEY_TEMPO_MAX_CHANGE = "tempo_max_change"
+    const val KEY_TEMPO_ONLY_FASTER = "tempo_only_faster"
+
+    /** The keys Force Tempo is spread across — the set [PlaybackService] re-applies on. */
+    val TEMPO_KEYS = setOf(
+        KEY_FORCE_TEMPO, KEY_TEMPO_BPM, KEY_TEMPO_MAX_CHANGE, KEY_TEMPO_ONLY_FASTER
+    )
+
+    /** The slider's ends. Below 60 nothing is a workout and above 200 nothing is a track. */
+    const val MIN_TEMPO_BPM = 60
+    const val MAX_TEMPO_BPM = 200
+    const val TEMPO_BPM_STEP = 5
+
+    /** A running cadence, and the most common answer to "what should this be set to". */
+    const val DEFAULT_TEMPO_BPM = 140
+
+    /**
+     * How far a track may be stretched, as a percentage.
+     *
+     * 30% is the default because it is roughly where time-stretching stops being unnoticeable:
+     * under it the ear hears a track that happens to be at that tempo, over it a track being
+     * driven. The ceiling is deliberately reachable — a 100% setting is silly and somebody will
+     * want to hear silly once.
+     */
+    const val MIN_TEMPO_CHANGE = 5
+    const val MAX_TEMPO_CHANGE = 100
+    const val DEFAULT_TEMPO_CHANGE = 30
+
     const val VOL_BAR = 0
     const val VOL_KNOB = 1
 
@@ -116,4 +148,52 @@ object Prefs {
 
     fun setSleepMinutes(context: Context, minutes: Int) =
         sp(context).edit().putInt(KEY_SLEEP_MINUTES, minutes).apply()
+
+    // ---------------- Force Tempo ----------------
+
+    /**
+     * When true, every track is played at whatever speed brings it to [tempoBpm] — see [Tempo] for
+     * what "brings it to" has to mean once octaves and a stretch ceiling are accounted for.
+     *
+     * Off by default, and it is the one setting in Lull that changes the *pitch-preserved speed* of
+     * the music rather than the gaps around it. A track whose tempo is unknown or absent is left
+     * alone, so switching this on never silently alters a podcast.
+     */
+    fun forceTempo(context: Context): Boolean =
+        sp(context).getBoolean(KEY_FORCE_TEMPO, false)
+
+    fun setForceTempo(context: Context, on: Boolean) =
+        sp(context).edit().putBoolean(KEY_FORCE_TEMPO, on).apply()
+
+    fun tempoBpm(context: Context): Int =
+        sp(context).getInt(KEY_TEMPO_BPM, DEFAULT_TEMPO_BPM).coerceIn(MIN_TEMPO_BPM, MAX_TEMPO_BPM)
+
+    fun setTempoBpm(context: Context, bpm: Int) =
+        sp(context).edit().putInt(KEY_TEMPO_BPM, bpm.coerceIn(MIN_TEMPO_BPM, MAX_TEMPO_BPM)).apply()
+
+    fun tempoMaxChange(context: Context): Int =
+        sp(context).getInt(KEY_TEMPO_MAX_CHANGE, DEFAULT_TEMPO_CHANGE)
+            .coerceIn(MIN_TEMPO_CHANGE, MAX_TEMPO_CHANGE)
+
+    fun setTempoMaxChange(context: Context, percent: Int) =
+        sp(context).edit()
+            .putInt(KEY_TEMPO_MAX_CHANGE, percent.coerceIn(MIN_TEMPO_CHANGE, MAX_TEMPO_CHANGE))
+            .apply()
+
+    /**
+     * Never play a track slower than it was recorded. On by default, because the feature exists to
+     * remove the slow patches from a workout and slowing a fast track down to hit a number would
+     * be it working against its own purpose.
+     */
+    fun tempoOnlyFaster(context: Context): Boolean =
+        sp(context).getBoolean(KEY_TEMPO_ONLY_FASTER, true)
+
+    fun setTempoOnlyFaster(context: Context, on: Boolean) =
+        sp(context).edit().putBoolean(KEY_TEMPO_ONLY_FASTER, on).apply()
+
+    /** The speed one track should play at under the current settings; 1.0 when it shouldn't move. */
+    fun speedFor(context: Context, bpm: Float): Float {
+        if (!forceTempo(context)) return Tempo.UNCHANGED
+        return Tempo.speedFor(bpm, tempoBpm(context), tempoMaxChange(context), tempoOnlyFaster(context))
+    }
 }
