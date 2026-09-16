@@ -98,6 +98,18 @@ class MainActivity : AppCompatActivity() {
     private val requestNotif =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
+    /**
+     * Deleting files, with the confirmation and the system's dialogs behind it.
+     *
+     * A field rather than something built on demand: it registers activity-result launchers, and
+     * those have to exist before the activity is started.
+     */
+    private val deleteFlow = DeleteFlow(this, { controller }, {
+        // The group we are standing in can have been emptied by its own delete.
+        if (drill != null && currentGroups().none { it.key == drill!!.key }) drill = null
+        loadTracks()
+    })
+
     private val playerListener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) { bindMini() }
     }
@@ -494,6 +506,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.sel_add_playlist -> showAddToPlaylist(tracks) { mode.finish() }
                 R.id.sel_rate -> showRatingDialog(tracks) { mode.finish() }
                 R.id.sel_share -> { shareTracks(tracks); mode.finish() }
+                R.id.sel_delete -> { deleteFlow.confirm(tracks); mode.finish() }
                 R.id.sel_select_all -> {
                     if (showingTracks()) trackAdapter.selectAll() else groupAdapter.selectAll()
                     onSelectionChanged()

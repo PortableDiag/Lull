@@ -149,6 +149,24 @@
     <string name="rated_count">Rated %2$s (%1$d tracks)</string>
     <string name="rating_cleared_count">Rating cleared on %1$d tracks</string>
 
+    <!-- Deleting tracks from the device -->
+    <string name="delete_track">Delete from device</string>
+    <string name="delete">Delete</string>
+    <string name="delete_confirm_one">Delete “%1$s” from this device?\n\nThe file itself goes, along with its rating and its place in any playlist. This cannot be undone.</string>
+    <plurals name="delete_confirm_many">
+        <item quantity="one">Delete %1$d track from this device?\n\nThe file itself goes, along with its rating and its place in any playlist. This cannot be undone.</item>
+        <item quantity="other">Delete %1$d tracks from this device?\n\nThe files themselves go, along with their ratings and their places in any playlist. This cannot be undone.</item>
+    </plurals>
+    <string name="deleted_one">Deleted “%1$s”</string>
+    <plurals name="deleted_count">
+        <item quantity="one">%1$d track deleted</item>
+        <item quantity="other">%1$d tracks deleted</item>
+    </plurals>
+    <string name="delete_none">Nothing was deleted</string>
+    <string name="delete_partial">Deleted %1$d of %2$d — the rest could not be removed</string>
+    <string name="delete_needs_permission">Lull needs storage permission to delete a file</string>
+    <string name="delete_nothing_playing">Nothing is playing</string>
+
     <!-- Share -->
     <string name="share_track">Share</string>
     <string name="share_nothing_playing">Nothing is playing</string>

@@ -8,7 +8,8 @@ What it is *for* is control over how things actually sound and how you actually 
 engine where gapless, crossfade and trim‑silence each compose instead of fighting; a Force Tempo
 that puts a whole playlist on one BPM without touching its pitch; star ratings with a shuffle that
 leans on them; seven ways through the same library; sharing that carries a track's metadata with
-it; and a local API that lets a script drive the whole app.
+it; a delete that takes everything keyed to the track with it and then checks what really went; and
+a local API that lets a script drive the whole app.
 
 > Package: `com.lull.player` · minSdk 26 (Android 8.0) · targetSdk 35 · [latest release](https://github.com/PortableDiag/Lull/releases/latest)
 
@@ -24,6 +25,7 @@ it; and a local API that lets a script drive the whole app.
 | **Favourites shuffle** | Rate tracks 1–5 and shuffle draws a **weighted** queue — three stars and up come around early and often. It is a **reordering, not a filter**: everything you asked for is still in the queue. |
 | **A local HTTP API** | Off until you switch it on, then key‑gated: a script or an agent can browse, play, queue, rate, build playlists, change settings and share — everything the UI can do. |
 | **Share that carries the metadata** | The file itself goes, plus title, artist, album, genre, duration, size and your rating — a `content://` uri carries none of that, and what arrives otherwise is a filename. |
+| **Delete a track, properly** | From the selection bar or from Now Playing, behind a confirmation that names what goes. The file, its rating, its tempo and its place in every playlist all go together — and what was *actually* deleted is read back out of MediaStore rather than assumed from a result code. |
 | **Safe repeat‑one** | With repeat‑one on, next and previous **restart** the track instead of skipping — from every control surface, including Bluetooth and headset buttons. |
 | **Seven ways to browse** | Tracks, Folders, Artists, Albums, Genres, Playlists and Rated, with the tab *and* the group you were in both remembered. |
 | **Open one file, get its folder** | Opening a track from a file manager queues the whole folder behind it, with no media permission needed. |
@@ -195,7 +197,7 @@ Genre is read from MediaStore's **genre membership tables** rather than the `GEN
 - Playlists are stored as lists of MediaStore ids in `SharedPreferences`, so they cost almost nothing and survive files moving; a track that has since been deleted is **skipped** when the playlist is shown, not pruned, so it returns if the file (or SD card) reappears.
 
 ### Multi-selection
-**Long-press any row to start selecting**, then tap to add more. The contextual bar offers **play**, **add to queue**, **add to playlist**, **rate**, **share**, **remove from this playlist**, and **select all**.
+**Long-press any row to start selecting**, then tap to add more. The contextual bar offers **play**, **add to queue**, **add to playlist**, **rate**, **share**, **remove from this playlist**, **select all**, and **delete from device**.
 
 It works on **groups** as well as tracks: long-press an album, folder or genre and everything inside it comes with the selection, without opening it first. Selection is held by **track id rather than row position**, so it survives a search keystroke or a playlist edit — positions would not. The reorder handles hide while a selection is running, because dragging and selecting are otherwise two gestures fighting over the same row.
 
@@ -214,6 +216,48 @@ leaves is byte-for-byte the file on disk.
 Empty fields are left out rather than written as "Unknown", and the share is typed as precisely as
 the extension allows (`audio/mpeg`, not the wildcard) because some receivers filter on the concrete
 type. A selection of mixed formats falls back to the generic type rather than misdescribe itself.
+
+### Deleting a track from the device
+The one thing in Lull that cannot be undone, so it is the one thing that asks first. **Delete from
+device** is the last entry on the selection bar — long-press a track, an album or a folder — and
+there is a button for it on the **Now Playing** top bar, because the moment you decide a track has
+to go is usually the moment you are listening to it.
+
+**Lull asks before the system does.** On Android 11 and up the platform puts its own confirmation
+over the app and does the deleting itself; Lull's dialog still comes first, because the system's
+asks whether you meant to delete *a file* while Lull's says which tracks, how many, and that the
+rating and the playlist entries go with them. On Android 9 and below there is no system dialog at
+all, and Lull's is the only thing between a long-press and a file being gone.
+
+Android has moved this three times and Lull covers all three:
+
+| Version | How a delete happens |
+|---|---|
+| **11+** (API 30) | `MediaStore.createDeleteRequest` — one system dialog for the whole batch, and the system does the deleting |
+| **10** (API 29) | A delete throws `RecoverableSecurityException` carrying a consent dialog for *that one file*, so a selection is worked through a file at a time. There is no batch form of it |
+| **8–9** (API 26–28) | A plain `WRITE_EXTERNAL_STORAGE` delete, no system dialog — hence the `maxSdkVersion="28"` on that permission |
+
+**Nothing trusts the result code.** `RESULT_OK` means the user pressed a button, not that every file
+went: one can sit on a card that has since been unmounted, or belong to another app. So what
+actually happened is read back out of MediaStore afterwards, and the toast reports *that* — including
+"Deleted 3 of 5" when it comes to it. An existence check that itself fails answers "they are all
+still there", which is the conservative direction: keeping a rating for a track that is gone is a
+much smaller wrong than throwing away ratings for tracks that are not.
+
+**Everything keyed to the track goes with it** — the rating, the measured BPM, the loudness profile,
+and its membership of every playlist. Those stores key on the MediaStore id precisely so they
+survive a file *moving*, but a deleted file is not moving anywhere and MediaStore gives a re-added
+file a new id, so keeping any of it would be keeping rubbish nothing can ever match again. That is
+the one case that overrides the playlists' usual rule of skipping a missing track rather than
+pruning it. The deleted tracks are taken out of the playing queue too, **highest position first** —
+removing low-to-high shifts every index after the first removal and takes out tracks nobody asked to
+lose.
+
+**The API cannot do this**, and that is deliberate — the only place Lull breaks its own "everything
+the API can do, the UI can do" rule. From Android 10 up the system has to ask a person, and a
+request arriving on a socket while the phone is in a pocket has nobody to ask; and this is the only
+irreversible thing in the app, so a leaked key should cost you a scrambled queue rather than a
+library. `GET /api/docs` says so out loud rather than leaving a silent gap.
 
 ### The local API
 **Lull can be driven by a script or an agent** — everything you can do with a finger, over HTTP on
@@ -328,7 +372,7 @@ Everything persistent is in the **overflow menu** on the library screen, and is 
 | **Force tempo** | Off / on, with a target BPM (60–200), a stretch ceiling, a never‑slow‑down switch, and pushing through quiet parts | Off |
 | **Local API** | Off / on, with a generated key, a port and a LAN switch | Off |
 
-Repeat, shuffle (off / shuffle / **favourites**) and the volume bar/knob choice are set on the **Now Playing** screen, along with the **star rating** for the playing track; the **A-B loop** buttons, the **sleep timer** (moon) and **share** are there too. The sleep timer is the one entry that isn't a persistent setting — a running countdown is intentionally dropped on restart, and only the duration you last picked is remembered.
+Repeat, shuffle (off / shuffle / **favourites**) and the volume bar/knob choice are set on the **Now Playing** screen, along with the **star rating** for the playing track; the **A-B loop** buttons, the **sleep timer** (moon), **share** and **delete** are there too. The sleep timer is the one entry that isn't a persistent setting — a running countdown is intentionally dropped on restart, and only the duration you last picked is remembered.
 
 None of the three playback settings can be pushed through a `MediaController`: crossfade is Lull's own concept rather than a Media3 one, and skip-silence and audio-focus handling live on `ExoPlayer` and not on the `Player` interface a controller talks to. So all three are written to `SharedPreferences` and picked up by `PlaybackService` through an `OnSharedPreferenceChangeListener`, which is what lets them take effect on the *live* player without restarting playback.
 
@@ -375,10 +419,10 @@ It also reports the four seek commands as always‑available so the buttons stay
 
 ### Tests
 ```bash
-./gradlew testDebugUnitTest      # 171 tests
+./gradlew testDebugUnitTest      # 183 tests
 ```
 
-Four things are tested, and they are the four where being nearly right is invisible from the UI:
+What is tested is what being nearly right about is invisible from the UI:
 
 - **`Shuffle`** makes a claim about *probability*, which one run can neither confirm nor refute — so
   the distribution is checked over thousands of draws from a fixed seed.
@@ -393,6 +437,10 @@ Four things are tested, and they are the four where being nearly right is invisi
   tests exist because they failed when they were written: a whole-frame lag search reads a 160 BPM
   track as 80, and a uniform 200 BPM rhythm reads as 100 unless the tie-break prefers the beat over
   the bar.
+- **Deleting**, which is the one thing in the app that cannot be undone. The arithmetic around it is
+  pure and checked: what actually went versus what was asked for, pruning the deleted ids out of the
+  playlists, and the queue positions to remove — **highest first**, because an ascending pass shifts
+  every index after the first removal and takes out tracks nobody asked to lose.
 - **Dead-spot detection**, where most of the tests are *false positives* — the build-up before a
   drop, a quietly mastered track, a passage hovering on the threshold. Speeding up in the wrong
   place is not a crash; it is a track that lurches on a phone in the middle of a run, and only a

@@ -206,6 +206,21 @@ curl -s -H "X-API-Key: ${'$'}KEY" 127.0.0.1:8787/api/tracks/42/share
 curl -s -H "X-API-Key: ${'$'}KEY" 127.0.0.1:8787/api/tracks/42/file -OJ
 ```
 
+## What the API deliberately cannot do
+
+Since 1.12 the UI can **delete a track from the device**, and that is the one thing here with no
+endpoint behind it. Two reasons, and neither is an oversight:
+
+- From Android 10 up a file Lull did not create is not Lull's to delete. The system asks the user
+  itself, over the app, and does the deleting. A request arriving on a socket while the phone is in
+  a pocket has nobody to ask, so the honest answer would be `409` on almost every call.
+- It is the only irreversible thing in the app. Everything else the key can reach is a list that can
+  be rebuilt; a deleted file is gone. A key that leaks should cost you a scrambled queue, not a
+  library.
+
+`DELETE /api/playlists/{id}` removes the playlist and leaves every track on the device, which is
+what it has always done.
+
 ## Worked example
 
 ```bash

@@ -37,4 +37,13 @@
         android:icon="@drawable/ic_delete"
         android:title="@string/selection_remove"
         app:showAsAction="never" />
+    <!--
+        Last, and never in the bar. The one action here that destroys something: everything above
+        it is a change to a list, and this one is a change to the disk.
+    -->
+    <item
+        android:id="@+id/sel_delete"
+        android:icon="@drawable/ic_delete_forever"
+        android:title="@string/delete_track"
+        app:showAsAction="never" />
 </menu>

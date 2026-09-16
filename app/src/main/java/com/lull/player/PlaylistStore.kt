@@ -106,6 +106,20 @@ object PlaylistStore {
 
     fun setOrder(c: Context, id: Long, trackIds: List<Long>) = updateTracks(c, id) { trackIds }
 
+    /**
+     * Takes [trackIds] out of every playlist that holds them. @return how many playlists changed.
+     *
+     * The one case that overrides the "skip it, don't prune it" rule at the top of this file: those
+     * tracks have been deleted from the device on purpose, MediaStore gives a re-added file a new
+     * id, and an entry that can never resolve again is a hole that makes the playlist's count lie.
+     */
+    fun removeFromAll(c: Context, trackIds: Collection<Long>): Int {
+        val existing = all(c)
+        val pruned = Deletion.prune(existing, trackIds.toSet()) ?: return 0
+        write(c, pruned)
+        return pruned.indices.count { pruned[it].trackIds != existing[it].trackIds }
+    }
+
     private inline fun updateTracks(c: Context, id: Long, transform: (List<Long>) -> List<Long>) {
         val list = all(c).toMutableList()
         val idx = list.indexOfFirst { it.id == id }

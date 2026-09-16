@@ -96,6 +96,17 @@ object ProfileStore {
         notifyChanged()
     }
 
+    /** [forget], for a whole selection, in one write. */
+    fun forgetAll(c: Context, ids: Collection<Long>) {
+        if (ids.isEmpty()) return
+        val map = map(c)
+        var changed = false
+        for (id in ids) if (map.remove(id) != null) changed = true
+        if (!changed) return
+        write(c, map)
+        notifyChanged()
+    }
+
     /** Forget every profile — for a library that has been re-encoded or re-mastered wholesale. */
     fun clear(c: Context) {
         cache = HashMap()

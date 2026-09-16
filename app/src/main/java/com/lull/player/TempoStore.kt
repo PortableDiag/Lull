@@ -103,6 +103,22 @@ object TempoStore {
         else -> bpm.coerceIn(BpmAnalysis.MIN_BPM.toInt(), BpmAnalysis.MAX_BPM.toInt())
     }
 
+    /**
+     * Forgets the tempos of tracks that are gone, in one write.
+     *
+     * Per-id [set] calls would rewrite the JSON once each; deleting an album would rewrite it
+     * twelve times for an answer nobody can use again.
+     */
+    fun forgetAll(c: Context, ids: Collection<Long>) {
+        if (ids.isEmpty()) return
+        val map = map(c)
+        var changed = false
+        for (id in ids) if (map.remove(id) != null) changed = true
+        if (!changed) return
+        write(c, map)
+        notifyChanged()
+    }
+
     /** Forget every tempo — for a library that has been re-tagged wholesale. */
     fun clear(c: Context) {
         cache = HashMap()

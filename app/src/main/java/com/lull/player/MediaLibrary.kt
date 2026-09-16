@@ -20,6 +20,9 @@ object MediaLibrary {
 
     private const val TAG = "LullLibrary"
 
+    /** Bound variables per query, kept well clear of SQLite's 999. */
+    private const val CHUNK = 400
+
     fun query(context: Context): List<AudioItem> {
         val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
             MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
@@ -159,6 +162,46 @@ object MediaLibrary {
 
     /** Album art for a group row: the first track in it that has any. */
     fun groupArt(tracks: List<AudioItem>): AudioItem? = tracks.firstOrNull { it.albumId > 0 }
+
+    /**
+     * Which of [ids] MediaStore still lists.
+     *
+     * This is how a delete is checked rather than believed: the system's confirmation dialog
+     * answers "the user pressed Allow", not "every one of those files went", and a file on an
+     * unmounted card or owned by another app can survive a delete that reported success. Asking
+     * MediaStore afterwards is the only answer that cannot be wrong.
+     *
+     * A query that fails answers "all of them are still there" — the conservative direction. The
+     * caller uses this to decide what to *forget* (ratings, tempos, playlist membership), and
+     * throwing away a rating for a track that is still on the device is worse than keeping one for
+     * a track that is not.
+     */
+    fun existingIds(context: Context, ids: List<Long>): Set<Long> {
+        if (ids.isEmpty()) return emptySet()
+        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+            MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+        else MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+
+        val out = HashSet<Long>()
+        // Chunked because SQLite caps the number of bound variables in one statement, and a
+        // select-all-then-delete on a big library would otherwise hit it.
+        for (chunk in ids.distinct().chunked(CHUNK)) {
+            val ok = runCatching {
+                context.contentResolver.query(
+                    collection,
+                    arrayOf(MediaStore.Audio.Media._ID),
+                    "${MediaStore.Audio.Media._ID} IN (${chunk.joinToString(",") { "?" }})",
+                    chunk.map { it.toString() }.toTypedArray(),
+                    null
+                )?.use { c ->
+                    val col = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                    while (c.moveToNext()) out.add(c.getLong(col))
+                } != null
+            }.onFailure { Log.w(TAG, "existence check failed", it) }.getOrDefault(false)
+            if (!ok) out.addAll(chunk)
+        }
+        return out
+    }
 
     fun contentUriFor(id: Long): Uri =
         ContentUris.withAppendedId(

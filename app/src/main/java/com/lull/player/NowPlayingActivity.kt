@@ -45,6 +45,12 @@ class NowPlayingActivity : AppCompatActivity() {
     /** The library can rate the playing track from its selection bar, so mirror the store. */
     private val ratingListener: () -> Unit = { renderRating() }
 
+    /**
+     * Deleting the track you can hear. A field because it registers activity-result launchers,
+     * which have to exist before the activity is started.
+     */
+    private val deleteFlow = DeleteFlow(this, { controller }, { render() })
+
     /** The five stars, low to high, so the index is one less than the rating it sets. */
     private val stars by lazy {
         listOf(binding.star1, binding.star2, binding.star3, binding.star4, binding.star5)
@@ -63,6 +69,7 @@ class NowPlayingActivity : AppCompatActivity() {
         binding.btnTheme.setOnClickListener { showThemeDialog() }
         binding.btnSleep.setOnClickListener { SleepTimerDialog.show(this) }
         binding.btnShare.setOnClickListener { shareCurrent() }
+        binding.btnDelete.setOnClickListener { deleteCurrent() }
         binding.btnPlayPause.setOnClickListener { controller?.let { if (it.isPlaying) it.pause() else it.play() } }
         binding.btnNext.setOnClickListener { controller?.seekToNext() }
         binding.btnPrev.setOnClickListener { controller?.seekToPrevious() }
@@ -357,6 +364,20 @@ class NowPlayingActivity : AppCompatActivity() {
         }
         c.removeMediaItems(from, count)
         c.addMediaItems(ordered)
+    }
+
+    // ---------------- Delete ----------------
+
+    /**
+     * The whole point of having this here rather than only in the library: the moment you decide a
+     * track has to go is usually the moment you are listening to it. The confirmation, the system's
+     * dialogs and taking it out of the queue are all [DeleteFlow]'s.
+     */
+    private fun deleteCurrent() {
+        val item = controller?.currentMediaItem
+        val id = item?.mediaId?.toLongOrNull()
+        if (item == null || id == null) { toast(getString(R.string.delete_nothing_playing)); return }
+        deleteFlow.confirmOne(id, item.mediaMetadata.title?.toString().orEmpty())
     }
 
     // ---------------- Share ----------------

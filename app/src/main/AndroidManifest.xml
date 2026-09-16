@@ -4,6 +4,13 @@
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
+    <!--
+        Deleting a track, and only below Android 10. From API 29 up a file Lull did not create is
+        not Lull's to delete however many permissions it holds — the system asks the user itself and
+        does the deleting (see TrackDelete.kt) — so this is capped where it stops meaning anything.
+    -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
