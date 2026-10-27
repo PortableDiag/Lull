@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The emphasised face: sans-serif-medium, or monospace under a mono palette. -->
+    <attr name="lullFontMedium" format="string" />
+</resources>

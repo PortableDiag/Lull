@@ -172,12 +172,15 @@ data class SettingsSnapshot(
     val tempoOnlyFaster: Boolean = true,
     val pushQuiet: Boolean = false,
     val quietBoost: Int = 0,
-    val quietThresholdDb: Int = 0
+    val quietThresholdDb: Int = 0,
+    /** A [com.lull.player.Palette.key]. */
+    val palette: String = "material-you"
 )
 
 /** Null means "leave that one alone" — a PATCH of one field must not reset the other six. */
 data class SettingsPatch(
     val theme: String? = null,
+    val palette: String? = null,
     val crossfadeSec: Int? = null,
     val skipSilence: Boolean? = null,
     val mixAudio: Boolean? = null,

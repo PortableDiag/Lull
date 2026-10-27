@@ -1,0 +1,6 @@
+# This project carries the ProjectForge house palettes. When they change,
+# `pf gate` and the Open items checklist say so; `pf palette apply .` updates
+# the copy and this file. Written by pf — edit only `files`.
+source = "/media/veracrypt1/Rust/ProjectForge/palettes.toml"
+commit = "e0aaf08f28fef53eb3546b88323775f28e0c5fba"
+files = []

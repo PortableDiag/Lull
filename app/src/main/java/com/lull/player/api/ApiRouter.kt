@@ -534,6 +534,13 @@ class ApiRouter(
             if (theme != null && theme !in THEMES) throw ApiException(
                 400, "unknown theme '$theme'", "one of: ${THEMES.joinToString(", ")}"
             )
+            val paletteArg = obj.optStringOrNull("palette")
+            val palette = paletteArg?.let {
+                com.lull.player.Palette.find(it) ?: throw ApiException(
+                    400, "unknown palette '$it'",
+                    "one of: ${com.lull.player.Palette.entries.joinToString(", ") { p -> p.key }}"
+                )
+            }
             val style = obj.optStringOrNull("volumeStyle")?.lowercase()
                 ?: obj.optStringOrNull("volume_style")?.lowercase()
             if (style != null && style !in VOLUME_STYLES) throw ApiException(
@@ -570,6 +577,7 @@ class ApiRouter(
             )
             val patch = SettingsPatch(
                 theme = theme,
+                palette = palette?.key,
                 crossfadeSec = crossfade,
                 skipSilence = obj.optBooleanOrNull("skipSilence") ?: obj.optBooleanOrNull("skip_silence"),
                 mixAudio = obj.optBooleanOrNull("mixAudio") ?: obj.optBooleanOrNull("mix_audio"),
@@ -651,6 +659,7 @@ class ApiRouter(
 
     private fun settingsJson(s: SettingsSnapshot): JSONObject = JSONObject()
         .put("theme", s.theme)
+        .put("palette", s.palette)
         .put("crossfade_sec", s.crossfadeSec)
         .put("skip_silence", s.skipSilence)
         .put("mix_audio", s.mixAudio)

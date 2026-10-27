@@ -525,6 +525,7 @@ class LullBackend(
             ThemeManager.DARK -> "dark"
             else -> "system"
         },
+        palette = ThemeManager.savedPalette(context).key,
         crossfadeSec = Prefs.crossfadeSec(context),
         skipSilence = Prefs.skipSilence(context),
         mixAudio = Prefs.mixAudio(context),
@@ -549,6 +550,9 @@ class LullBackend(
                     else -> ThemeManager.SYSTEM
                 }
             )
+        }
+        patch.palette?.let { key ->
+            com.lull.player.Palette.find(key)?.let { ThemeManager.setPalette(context, it) }
         }
         patch.crossfadeSec?.let { Prefs.setCrossfadeSec(context, it) }
         patch.skipSilence?.let { Prefs.setSkipSilence(context, it) }

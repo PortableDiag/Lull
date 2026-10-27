@@ -6,6 +6,7 @@
         <item name="colorPrimaryContainer">@color/brand_dark</item>
         <item name="colorOnPrimaryContainer">@color/white</item>
         <item name="colorSecondary">@color/accent</item>
+        <item name="lullFontMedium">sans-serif-medium</item>
 
         <item name="android:colorBackground">@color/dark_bg</item>
         <item name="colorSurface">@color/dark_surface</item>

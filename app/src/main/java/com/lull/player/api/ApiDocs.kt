@@ -132,10 +132,15 @@ around early and often. It reorders the queue rather than filtering it.
 
 ## Settings
 
-`GET /api/settings`, and `PATCH` any of `theme` (`system\|light\|dark`), `crossfadeSec` (0–12),
+`GET /api/settings`, and `PATCH` any of `palette` (below), `theme` (`system\|light\|dark` — only
+Material You, Ocean and Terminal follow it; every other palette is one look), `crossfadeSec` (0–12),
 `skipSilence`, `mixAudio`, `volumeStyle` (`bar\|knob`), plus Force Tempo: `forceTempo`,
 `tempoBpm` (60–200), `tempoMaxChange` (5–100, a percentage) and `tempoOnlyFaster`; and the dead-spot
 settings `pushQuiet`, `quietBoost` (10–150) and `quietThresholdDb` (3–24).
+
+`palette` is one of the house colour schemes, by key — ${com.lull.player.Palette.entries.joinToString(", ") { "`" + it.key + "`" }}
+— or by its name in any case (`"White Glow"`). Unknown names are a `400` that lists them. The
+screens that are open redraw in it at once.
 
 ## Force Tempo
 

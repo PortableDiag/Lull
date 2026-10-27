@@ -604,6 +604,23 @@ class ApiRouterTest {
         assertEquals("dark", backend.settings().theme)
     }
 
+    @Test
+    fun `palette reads back by key and can be set by key or by name`() {
+        assertEquals("material-you", call("GET", "/api/settings").obj().getString("palette"))
+        assertEquals("nebula", call("PATCH", "/api/settings", """{"palette":"nebula"}""").obj().getString("palette"))
+        val named = call("PATCH", "/api/settings", """{"palette":"White Glow"}""").obj()
+        assertEquals("white-glow", named.getString("palette"))
+        assertEquals("dark", named.getString("theme"))
+    }
+
+    @Test
+    fun `an unknown palette is refused and the error lists the real ones`() {
+        val r = call("PATCH", "/api/settings", """{"palette":"solarized"}""")
+        assertEquals(400, r.status)
+        assertTrue(String(r.body).contains("sticky-notes"))
+        assertEquals("material-you", backend.settings().palette)
+    }
+
     // ---------------- Share ----------------
 
     @Test

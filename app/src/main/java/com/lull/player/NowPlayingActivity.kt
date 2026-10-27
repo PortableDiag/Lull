@@ -56,9 +56,15 @@ class NowPlayingActivity : AppCompatActivity() {
         listOf(binding.star1, binding.star2, binding.star3, binding.star4, binding.star5)
     }
 
+    /** The palette this screen was built with; a different saved one means it is out of date. */
+    private var palette = Palette.DEFAULT
+    private val themeListener: () -> Unit = { if (ThemeManager.savedPalette(this) != palette) recreate() }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         ThemeManager.applySaved(this)
+        palette = ThemeManager.savedPalette(this)
         super.onCreate(savedInstanceState)
+        ThemeManager.reapply(this)
         binding = ActivityNowPlayingBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -66,7 +72,7 @@ class NowPlayingActivity : AppCompatActivity() {
         maxVol = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
 
         binding.btnBack.setOnClickListener { finish() }
-        binding.btnTheme.setOnClickListener { showThemeDialog() }
+        binding.btnTheme.setOnClickListener { ThemeDialog.show(this) }
         binding.btnSleep.setOnClickListener { SleepTimerDialog.show(this) }
         binding.btnShare.setOnClickListener { shareCurrent() }
         binding.btnDelete.setOnClickListener { deleteCurrent() }
@@ -105,6 +111,8 @@ class NowPlayingActivity : AppCompatActivity() {
         AbLoop.addListener(abListener)
         SleepTimer.addListener(sleepListener)
         RatingStore.addListener(ratingListener)
+        ThemeManager.addListener(themeListener)
+        themeListener() // changed while this screen was out of sight
         renderAb()
         renderSleep()
         renderRating()
@@ -117,6 +125,7 @@ class NowPlayingActivity : AppCompatActivity() {
         AbLoop.removeListener(abListener)
         SleepTimer.removeListener(sleepListener)
         RatingStore.removeListener(ratingListener)
+        ThemeManager.removeListener(themeListener)
         controller?.removeListener(playerListener)
         controllerFuture?.let { MediaController.releaseFuture(it) }
         controller = null
@@ -470,19 +479,6 @@ class NowPlayingActivity : AppCompatActivity() {
 
     // ---------------- Misc ----------------
 
-    private fun showThemeDialog() {
-        val options = arrayOf(
-            getString(R.string.theme_system), getString(R.string.theme_light), getString(R.string.theme_dark)
-        )
-        val current = ThemeManager.savedMode(this)
-        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.theme)
-            .setSingleChoiceItems(options, current) { d, which ->
-                d.dismiss(); if (which != current) ThemeManager.setMode(this, which)
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
 
     private fun themeColor(attr: Int): Int {
         val tv = TypedValue()

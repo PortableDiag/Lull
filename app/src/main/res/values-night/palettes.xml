@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from ProjectForge/palettes.toml by scripts/palettes.py — do not edit here. -->
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="ThemeOverlay.Lull.Ocean" parent="">
+        <item name="colorPrimary">#AEC6FF</item>
+        <item name="colorOnPrimary">#0E1014</item>
+        <item name="colorPrimaryContainer">#274777</item>
+        <item name="colorOnPrimaryContainer">#E3E5EA</item>
+        <item name="colorSecondary">#AEC6FF</item>
+        <item name="colorOnSecondary">#0E1014</item>
+        <item name="colorSecondaryContainer">#274777</item>
+        <item name="colorOnSecondaryContainer">#E3E5EA</item>
+        <item name="colorTertiary">#AEC6FF</item>
+        <item name="colorOnTertiary">#0E1014</item>
+        <item name="colorTertiaryContainer">#274777</item>
+        <item name="colorOnTertiaryContainer">#E3E5EA</item>
+        <item name="android:colorBackground">#0E1014</item>
+        <item name="colorOnBackground">#E3E5EA</item>
+        <item name="colorSurface">#16181D</item>
+        <item name="colorOnSurface">#E3E5EA</item>
+        <item name="colorSurfaceVariant">#262A33</item>
+        <item name="colorOnSurfaceVariant">#C4C6D0</item>
+        <item name="colorSurfaceContainerLowest">#0E1014</item>
+        <item name="colorSurfaceContainerLow">#16181D</item>
+        <item name="colorSurfaceContainer">#1D2026</item>
+        <item name="colorSurfaceContainerHigh">#262A33</item>
+        <item name="colorSurfaceContainerHighest">#262A33</item>
+        <item name="colorSurfaceBright">#262A33</item>
+        <item name="colorSurfaceDim">#0E1014</item>
+        <item name="colorOutline">#3A3E46</item>
+        <item name="colorOutlineVariant">#3A3E46</item>
+        <item name="colorSurfaceInverse">#E3E5EA</item>
+        <item name="colorOnSurfaceInverse">#0E1014</item>
+        <item name="colorPrimaryInverse">#274777</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">false</item>
+    </style>
+
+    <style name="ThemeOverlay.Lull.Terminal" parent="">
+        <item name="colorPrimary">#33FF77</item>
+        <item name="colorOnPrimary">#000300</item>
+        <item name="colorPrimaryContainer">#00391B</item>
+        <item name="colorOnPrimaryContainer">#4DFF85</item>
+        <item name="colorSecondary">#33FF77</item>
+        <item name="colorOnSecondary">#000300</item>
+        <item name="colorSecondaryContainer">#00391B</item>
+        <item name="colorOnSecondaryContainer">#4DFF85</item>
+        <item name="colorTertiary">#33FF77</item>
+        <item name="colorOnTertiary">#000300</item>
+        <item name="colorTertiaryContainer">#00391B</item>
+        <item name="colorOnTertiaryContainer">#4DFF85</item>
+        <item name="android:colorBackground">#000300</item>
+        <item name="colorOnBackground">#4DFF85</item>
+        <item name="colorSurface">#06120A</item>
+        <item name="colorOnSurface">#4DFF85</item>
+        <item name="colorSurfaceVariant">#11241A</item>
+        <item name="colorOnSurfaceVariant">#37B45F</item>
+        <item name="colorSurfaceContainerLowest">#000300</item>
+        <item name="colorSurfaceContainerLow">#06120A</item>
+        <item name="colorSurfaceContainer">#0B1B11</item>
+        <item name="colorSurfaceContainerHigh">#11241A</item>
+        <item name="colorSurfaceContainerHighest">#11241A</item>
+        <item name="colorSurfaceBright">#11241A</item>
+        <item name="colorSurfaceDim">#000300</item>
+        <item name="colorOutline">#1E5B34</item>
+        <item name="colorOutlineVariant">#1E5B34</item>
+        <item name="colorSurfaceInverse">#4DFF85</item>
+        <item name="colorOnSurfaceInverse">#000300</item>
+        <item name="colorPrimaryInverse">#00391B</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">false</item>
+        <item name="android:fontFamily">monospace</item>
+        <item name="fontFamily">monospace</item>
+        <item name="lullFontMedium">monospace</item>
+    </style>
+</resources>

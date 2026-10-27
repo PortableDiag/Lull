@@ -58,7 +58,7 @@
             android:ellipsize="end"
             android:textColor="?attr/colorOnSurface"
             android:textSize="15sp"
-            android:fontFamily="sans-serif-medium"
+            android:fontFamily="?attr/lullFontMedium"
             android:text="Track title" />
 
         <TextView

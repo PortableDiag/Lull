@@ -125,9 +125,15 @@ class MainActivity : AppCompatActivity() {
 
     // ---------------- Lifecycle ----------------
 
+    /** The palette this screen was built with; a different saved one means it is out of date. */
+    private var palette = Palette.DEFAULT
+    private val themeListener: () -> Unit = { if (ThemeManager.savedPalette(this) != palette) recreate() }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         ThemeManager.applySaved(this)
+        palette = ThemeManager.savedPalette(this)
         super.onCreate(savedInstanceState)
+        ThemeManager.reapply(this)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -199,6 +205,8 @@ class MainActivity : AppCompatActivity() {
         connectController()
         RatingStore.addListener(ratingListener)
         Changes.addListener(changeListener)
+        ThemeManager.addListener(themeListener)
+        themeListener() // changed while this screen was out of sight
         if (hasPermission()) loadTracks() else showPermissionPrompt()
     }
 
@@ -206,6 +214,7 @@ class MainActivity : AppCompatActivity() {
         super.onStop()
         RatingStore.removeListener(ratingListener)
         Changes.removeListener(changeListener)
+        ThemeManager.removeListener(themeListener)
         controller?.removeListener(playerListener)
         controllerFuture?.let { MediaController.releaseFuture(it) }
         controller = null
@@ -717,7 +726,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
-            R.id.action_theme -> { showThemeDialog(); true }
+            R.id.action_theme -> { ThemeDialog.show(this); true }
             R.id.action_new_playlist -> { promptNewPlaylist(emptyList()); true }
             R.id.action_rename_playlist -> { currentPlaylist()?.let { showRenameDialog(it) }; true }
             R.id.action_delete_playlist -> { currentPlaylist()?.let { confirmDeletePlaylist(it) }; true }
@@ -910,19 +919,6 @@ class MainActivity : AppCompatActivity() {
         binding.newPlaylistFab.visibility = View.GONE
     }
 
-    private fun showThemeDialog() {
-        val options = arrayOf(
-            getString(R.string.theme_system), getString(R.string.theme_light), getString(R.string.theme_dark)
-        )
-        val current = ThemeManager.savedMode(this)
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.theme)
-            .setSingleChoiceItems(options, current) { d, which ->
-                d.dismiss(); if (which != current) ThemeManager.setMode(this, which)
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
 
     private fun showCrossfadeDialog() {
         val view = DialogCrossfadeBinding.inflate(layoutInflater)

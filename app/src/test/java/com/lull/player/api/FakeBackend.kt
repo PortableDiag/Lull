@@ -208,6 +208,7 @@ class FakeBackend : ApiBackend {
         calls += "settings($patch)"
         settings = settings.copy(
             theme = patch.theme ?: settings.theme,
+            palette = patch.palette ?: settings.palette,
             crossfadeSec = patch.crossfadeSec ?: settings.crossfadeSec,
             skipSilence = patch.skipSilence ?: settings.skipSilence,
             mixAudio = patch.mixAudio ?: settings.mixAudio,

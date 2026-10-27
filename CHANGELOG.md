@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.13 — 2026-10-27
+- **All seventeen house palettes.** The theme button now opens a swatch list of every one — Material You (wallpaper colours), Ocean, Terminal, Trellis, Graphite, Blueprint, Futuristic, Neon, SynthWave, White Glow, Silkscreen, Sticky Notes, Amber Terminal, Phosphor Green, Phosphor P31, Zoro and Nebula — where before there was only light, dark and follow-system.
+- **Material You, Ocean and Terminal follow light / dark / follow-system**, behind the **Light / dark** button in the picker; every other palette is a single look and forces the night mode its own background calls for, so the status bar, dialogs and pickers come out the right way round for *it* rather than for the phone. Material You takes the wallpaper's colours on Android 12+ and is Lull's own blue below that; it is the default, as it is across the house set, and the mode still defaults to dark.
+- **Amber Terminal, Phosphor Green, Phosphor P31 and Terminal set the type in monospace**, emphasised text included.
+- **A change shows at once** on any screen that is open, including one changed from the API; a screen that was out of sight redraws when it comes back.
+- API: `palette` on `GET`/`PATCH /api/settings`, by key (`white-glow`) or by name in any case (`"White Glow"`); an unknown one is a `400` that lists the real ones.
+- Internal: the palettes are generated from ProjectForge's `palettes.toml` by `scripts/palettes.py` into theme overlays and a `Palette` enum with no Android imports, so the router validates against it and the tests run it. A fix found on the emulator: when AppCompat moves the night mode inside `super.onCreate` it rebuilds the theme from the manifest's, which kept a terminal palette's font but threw away its colours — the overlay is now applied again after it. 183 tests to **192**.
+
 ## 1.12 — 2026-09-16
 - **Delete a track from the device.** The last entry on the selection bar — long-press a track, an album, a folder — and a button on the **Now Playing** top bar, because the moment you decide a track has to go is usually the moment you are listening to it.
 - **Lull asks before the system does.** On Android 11 and up the platform puts its own confirmation over the app and does the deleting itself, and Lull's dialog still comes first: the system's asks whether you meant to delete *a file*, while Lull's says which track, how many, and that the rating and the playlist entries go too. On Android 9 and below there is **no system dialog at all**, and Lull's is the only thing between a long-press and a file being gone for good.
