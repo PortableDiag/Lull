@@ -195,6 +195,22 @@
     <string name="api_channel">Local API</string>
     <string name="api_port_invalid">Pick a port between 1024 and 65535</string>
     <string name="api_docs_hint">GET /api/docs lists every endpoint.</string>
+
+    <!-- PhoneAPI key handshake (provider contract §3) -->
+    <string name="phoneapi_title">Let PhoneAPI use Lull?</string>
+    <string name="phoneapi_body">PhoneAPI gets its own key to Lull\'s local API, with only what you switch on below. Which agents may use it is up to you in PhoneAPI, where every agent starts with it off.</string>
+    <string name="phoneapi_turns_on">This turns the local API on.</string>
+    <string name="phoneapi_replaces">PhoneAPI\'s earlier key stops working.</string>
+    <string name="phoneapi_see">See (every GET)</string>
+    <string name="phoneapi_see_explain">The library, what is playing, playlists, ratings, settings and the audio files themselves.</string>
+    <string name="phoneapi_change">Change (everything else)</string>
+    <string name="phoneapi_change_explain">Play, pause and skip, edit playlists and ratings, change settings, and share tracks.</string>
+    <string name="phoneapi_deny">Don\'t allow</string>
+    <string name="phoneapi_allow">Allow</string>
+    <string name="api_phoneapi_linked">Linked to PhoneAPI (%1$s)</string>
+    <string name="api_phoneapi_none">Not linked to PhoneAPI. Connect from PhoneAPI\'s Providers screen.</string>
+    <string name="api_phoneapi_unlink">Unlink PhoneAPI</string>
+    <string name="api_phoneapi_unlinked">PhoneAPI unlinked: its key stops working now</string>
     <!-- Force Tempo -->
     <string name="force_tempo">Force tempo</string>
     <string name="force_tempo_menu">Force tempo · %1$d BPM</string>

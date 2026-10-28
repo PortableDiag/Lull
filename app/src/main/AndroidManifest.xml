@@ -27,6 +27,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- PhoneAPI's pinned certificate can only be checked on a package Lull can see (Android 11+). -->
+    <queries>
+        <package android:name="com.phoneapi.app" />
+    </queries>
+
     <application
         android:name=".LullApp"
         android:allowBackup="true"
@@ -137,6 +142,22 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Serves the user-enabled local HTTP API that lets a script on this device control playback" />
         </service>
+
+        <!--
+            PhoneAPI provider contract §3: PhoneAPI starts this for result to get a key. Exported
+            because another app starts it; it refuses every caller but PhoneAPI's release build,
+            and asks the owner before answering.
+        -->
+        <activity
+            android:name=".api.GrantKeyActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.Lull">
+            <intent-filter>
+                <action android:name="com.phoneapi.action.GRANT_KEY" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
 
         <receiver
             android:name=".api.BootReceiver"

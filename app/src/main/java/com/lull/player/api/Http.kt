@@ -90,6 +90,10 @@ class ApiResponse(
 ) {
     val reason: String get() = REASONS[status] ?: "OK"
 
+    /** The same response with one more header; the body or stream travels unchanged. */
+    fun withHeader(name: String, value: String) =
+        ApiResponse(status, contentType, body, stream, streamLength, extraHeaders + (name to value))
+
     companion object {
         private val REASONS = mapOf(
             200 to "OK", 201 to "Created", 204 to "No Content", 400 to "Bad Request",

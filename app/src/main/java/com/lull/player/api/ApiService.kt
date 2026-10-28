@@ -5,9 +5,11 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
@@ -69,9 +71,24 @@ class ApiService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /** PhoneAPI removed, replaced or re-signed while the API runs: its key goes if it is no longer trusted. */
+    private val packageWatcher = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.data?.schemeSpecificPart == PhoneApiLink.PACKAGE) PhoneApiLink.dropIfUntrusted(context)
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         connectController()
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REPLACED)
+            addDataScheme("package")
+        }
+        // System broadcasts only; nothing else can send these.
+        ContextCompat.registerReceiver(this, packageWatcher, filter, ContextCompat.RECEIVER_EXPORTED)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -88,8 +105,13 @@ class ApiService : Service() {
 
         val address = ApiPrefs.bindAddress(this)
         val port = ApiPrefs.port(this)
-        val router = ApiRouter(LullBackend(applicationContext) { controller }) { ApiPrefs.key(this) }
-        val api = ApiServer(router, address, port)
+        PhoneApiLink.dropIfUntrusted(this)
+        val router = ApiRouter(
+            LullBackend(applicationContext) { controller },
+            expectedKey = { ApiPrefs.key(this) },
+            phoneApi = { PhoneApiLink.access(this) }
+        )
+        val api = ApiServer(router, address, port) { PhoneApiLink.proofKey(this) }
 
         // Foreground first: a service that binds a socket before it has posted its notification is
         // a service that can be killed with the socket open.
@@ -109,6 +131,7 @@ class ApiService : Service() {
     }
 
     override fun onDestroy() {
+        runCatching { unregisterReceiver(packageWatcher) }
         server?.stop()
         server = null
         controller?.release()

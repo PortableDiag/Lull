@@ -2,6 +2,7 @@ package com.lull.player
 
 import android.app.Application
 import com.lull.player.api.Foreground
+import com.lull.player.api.PhoneApiLink
 
 /**
  * Exists for one job: start watching whether any of Lull's screens is in front of the user, from a
@@ -19,5 +20,7 @@ class LullApp : Application() {
     override fun onCreate() {
         super.onCreate()
         Foreground.install(this)
+        // PhoneAPI uninstalled or re-signed while Lull wasn't running: its key goes now.
+        PhoneApiLink.dropIfUntrusted(this)
     }
 }

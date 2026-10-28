@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.13.1 — 2026-10-27
+- **PhoneAPI can link to Lull.** PhoneAPI's Providers screen opens Lull's own **Let PhoneAPI use Lull?** screen, with two switches, both off: **See** (every `GET`) and **Change** (everything else). On **Allow**, PhoneAPI gets its own key, separate from yours, and the local API switches on. The key travels only as the screen's result, and only to PhoneAPI's release build, checked against its pinned signing certificate; anything else gets nothing. A second link replaces the first key.
+- **Lull proves who is listening.** Once linked, every answer to a request carrying `X-PhoneAPI-Challenge` (health, 401s, 404s and errors included) carries `X-PhoneAPI-Proof`, an HMAC of the challenge under a key only Lull and PhoneAPI hold, so another app squatting on port 8787 cannot pass for Lull.
+- PhoneAPI's key does only what its switches allow (`403` otherwise); yours is unchanged. **Local API** shows whether PhoneAPI is linked, with **Unlink PhoneAPI**. Uninstalling PhoneAPI, or replacing it with a build not signed by its key, unlinks it.
+- Internal: `PhoneApiProof` and `PhoneApiAccess` have no Android imports and are tested on the JVM. 192 tests to **199**.
+
 ## 1.13 — 2026-10-27
 - **All seventeen house palettes.** The theme button now opens a swatch list of every one — Material You (wallpaper colours), Ocean, Terminal, Trellis, Graphite, Blueprint, Futuristic, Neon, SynthWave, White Glow, Silkscreen, Sticky Notes, Amber Terminal, Phosphor Green, Phosphor P31, Zoro and Nebula — where before there was only light, dark and follow-system.
 - **Material You, Ocean and Terminal follow light / dark / follow-system**, behind the **Light / dark** button in the picker; every other palette is a single look and forces the night mode its own background calls for, so the status bar, dialogs and pickers come out the right way round for *it* rather than for the phone. Material You takes the wallpaper's colours on Android 12+ and is Lull's own blue below that; it is the default, as it is across the house set, and the mode still defaults to dark.

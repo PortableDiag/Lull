@@ -26,6 +26,8 @@ import org.json.JSONObject
  */
 class ApiRouter(
     private val backend: ApiBackend,
+    /** PhoneAPI's own key and its two switches (provider contract §3), or null when not linked. */
+    private val phoneApi: () -> PhoneApiAccess? = { null },
     private val expectedKey: () -> String
 ) {
 
@@ -55,11 +57,8 @@ class ApiRouter(
                 "everything this server answers lives under /api — GET /api/docs lists it"
             )
             request.path in OPEN_PATHS -> dispatch(request)
-            !authorised(request) -> ApiResponse.error(
-                401, "missing or invalid API key",
-                "send it as the X-API-Key header, or Authorization: Bearer <key>"
-            )
-            else -> dispatch(request)
+            authorised(request, expectedKey()) -> dispatch(request)
+            else -> phoneApiRequest(request)
         }
     } catch (e: ApiException) {
         ApiResponse.error(e.status, e.message ?: "request failed", e.hint)
@@ -72,8 +71,7 @@ class ApiRouter(
      * and a local socket is exactly where an attacker can afford the millions of tries that turns
      * into.
      */
-    private fun authorised(request: ApiRequest): Boolean {
-        val expected = expectedKey()
+    private fun authorised(request: ApiRequest, expected: String): Boolean {
         if (expected.isEmpty()) return false
         val offered = request.header("x-api-key")
             ?: request.header("authorization")?.removePrefix("Bearer ")?.removePrefix("bearer ")?.trim()
@@ -84,6 +82,23 @@ class ApiRouter(
         var diff = 0
         for (i in a.indices) diff = diff or (a[i].toInt() xor b[i].toInt())
         return diff == 0
+    }
+
+    /**
+     * PhoneAPI's key opens only what the owner switched on for it: "See" is every GET, "Change"
+     * is everything else. The owner's own key is never limited this way.
+     */
+    private fun phoneApiRequest(request: ApiRequest): ApiResponse {
+        val access = phoneApi()
+        if (access == null || !authorised(request, access.key)) return ApiResponse.error(
+            401, "missing or invalid API key",
+            "send it as the X-API-Key header, or Authorization: Bearer <key>"
+        )
+        if (!access.allows(request.method)) return ApiResponse.error(
+            403, "PhoneAPI's key is not allowed to ${if (request.method == "GET") "see" else "change"} anything in Lull",
+            "the owner chooses that when linking PhoneAPI; link it again from PhoneAPI to change it"
+        )
+        return dispatch(request)
     }
 
     // ---------------- Dispatch ----------------

@@ -28,7 +28,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 class ApiServer(
     private val router: ApiRouter,
     private val bindAddress: String,
-    private val port: Int
+    private val port: Int,
+    /** PhoneAPI's proof key (provider contract §2), or null while PhoneAPI is not linked. */
+    private val proofKey: () -> ByteArray? = { null }
 ) {
 
     companion object {
@@ -102,8 +104,9 @@ class ApiServer(
             val input = BufferedInputStream(socket.getInputStream())
             val output = BufferedOutputStream(socket.getOutputStream())
 
+            var request: ApiRequest? = null
             val response = try {
-                val request = Http.parse(input) ?: return
+                request = Http.parse(input) ?: return
                 router.handle(request)
             } catch (e: ApiException) {
                 ApiResponse.error(e.status, e.message ?: "bad request", e.hint)
@@ -116,7 +119,9 @@ class ApiServer(
                 ApiResponse.error(500, "${e.javaClass.simpleName}: ${e.message}")
             }
 
-            runCatching { write(output, response) }
+            // Signed here, after everything else, so no answer can leave without the proof.
+            val signed = runCatching { PhoneApiProof.sign(request, response, proofKey()) }.getOrDefault(response)
+            runCatching { write(output, signed) }
                 .onFailure { Log.w(TAG, "response failed", it) }
         }
     }
@@ -131,7 +136,7 @@ class ApiServer(
             .append("Cache-Control: no-store\r\n")
             // A browser on this device may well be how someone pokes at it; the key is still needed.
             .append("Access-Control-Allow-Origin: *\r\n")
-            .append("Access-Control-Allow-Headers: X-API-Key, Authorization, Content-Type\r\n")
+            .append("Access-Control-Allow-Headers: X-API-Key, Authorization, Content-Type, X-PhoneAPI-Challenge\r\n")
             .append("Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\n")
             .apply {
                 for ((name, value) in response.extraHeaders) append("$name: $value\r\n")

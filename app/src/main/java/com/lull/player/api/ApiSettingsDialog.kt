@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.view.View
 import android.widget.Toast
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.lull.player.R
@@ -37,11 +38,29 @@ object ApiSettingsDialog {
             binding.apiKey.text = key.ifEmpty { context.getString(R.string.api_key_none) }
         }
 
+        fun renderPhoneApi() {
+            PhoneApiLink.dropIfUntrusted(context)
+            val access = PhoneApiLink.access(context)
+            binding.apiPhoneApi.text = if (access == null) context.getString(R.string.api_phoneapi_none)
+            else context.getString(
+                R.string.api_phoneapi_linked,
+                listOfNotNull("see".takeIf { access.see }, "change".takeIf { access.change }).joinToString(", ")
+            )
+            binding.apiPhoneApiUnlink.visibility = if (access == null) View.GONE else View.VISIBLE
+        }
+
         binding.apiEnable.isChecked = ApiPrefs.enabled(context)
         binding.apiLan.isChecked = ApiPrefs.lan(context)
         binding.apiPort.setText(ApiPrefs.port(context).toString())
         renderKey()
         renderStatus()
+        renderPhoneApi()
+
+        binding.apiPhoneApiUnlink.setOnClickListener {
+            PhoneApiLink.unlink(context)
+            renderPhoneApi()
+            Toast.makeText(context, R.string.api_phoneapi_unlinked, Toast.LENGTH_SHORT).show()
+        }
 
         val statusListener = { activity.runOnUiThread { renderStatus() } }
         ApiStatus.addListener(statusListener)

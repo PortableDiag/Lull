@@ -71,6 +71,15 @@ Authorization: Bearer <key>
 
 Wrong or missing key → `401 {"error":"missing or invalid API key"}`.
 
+### PhoneAPI
+
+PhoneAPI links itself with the key handshake (`com.phoneapi.action.GRANT_KEY`) and gets its own
+key, separate from yours. The owner chooses what it may do: **See** (every `GET`) and **Change**
+(everything else); the other one answers `403`. Once linked, every answer to a request carrying
+`X-PhoneAPI-Challenge` (health, 401s, 404s and errors included) carries
+`X-PhoneAPI-Proof: base64url_nopad(HMAC-SHA256(proof_key, challenge))`. Unlink under **Local API**;
+uninstalling PhoneAPI unlinks it too.
+
 ## Shapes
 
 - Everything answers JSON except `…/file` and `…/art`, which answer bytes.
