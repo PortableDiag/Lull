@@ -201,6 +201,7 @@
     <string name="phoneapi_body">PhoneAPI gets its own key to Lull\'s local API, with only what you switch on below. Which agents may use it is up to you in PhoneAPI, where every agent starts with it off.</string>
     <string name="phoneapi_turns_on">This turns the local API on.</string>
     <string name="phoneapi_replaces">PhoneAPI\'s earlier key stops working.</string>
+    <string name="phoneapi_may">It may:</string>
     <string name="phoneapi_see">See (every GET)</string>
     <string name="phoneapi_see_explain">The library, what is playing, playlists, ratings, settings and the audio files themselves.</string>
     <string name="phoneapi_change">Change (everything else)</string>

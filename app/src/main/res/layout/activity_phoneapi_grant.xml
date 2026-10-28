@@ -34,11 +34,20 @@
             android:textColor="?attr/colorOnSurfaceVariant"
             android:textSize="14sp" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/phoneapi_may"
+            android:textColor="?attr/colorOnSurface"
+            android:fontFamily="?attr/lullFontMedium"
+            android:textSize="15sp" />
+
         <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/see"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="8dp"
             android:text="@string/phoneapi_see"
             android:textSize="16sp" />
 

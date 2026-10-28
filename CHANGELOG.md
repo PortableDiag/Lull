@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.13.3 — 2026-10-27
+- The PhoneAPI key screen says **It may:** above its switches, and when PhoneAPI already holds a key the switches start at what that key may do now, instead of off.
+
 ## 1.13.1 — 2026-10-27
 - **PhoneAPI can link to Lull.** PhoneAPI's Providers screen opens Lull's own **Let PhoneAPI use Lull?** screen, with two switches, both off: **See** (every `GET`) and **Change** (everything else). On **Allow**, PhoneAPI gets its own key, separate from yours, and the local API switches on. The key travels only as the screen's result, and only to PhoneAPI's release build, checked against its pinned signing certificate; anything else gets nothing. A second link replaces the first key.
 - **Lull proves who is listening.** Once linked, every answer to a request carrying `X-PhoneAPI-Challenge` (health, 401s, 404s and errors included) carries `X-PhoneAPI-Proof`, an HMAC of the challenge under a key only Lull and PhoneAPI hold, so another app squatting on port 8787 cannot pass for Lull.

@@ -38,7 +38,13 @@ class GrantKeyActivity : AppCompatActivity() {
         binding.body.text = body
 
         // Everything starts off, and a key that may do nothing isn't worth minting.
+        // A second link starts from what PhoneAPI's current key may do, not from nothing.
+        PhoneApiLink.access(this)?.let {
+            binding.see.isChecked = it.see
+            binding.change.isChecked = it.change
+        }
         val sync = { binding.allow.isEnabled = binding.see.isChecked || binding.change.isChecked }
+        sync()
         binding.see.setOnCheckedChangeListener { _, _ -> sync() }
         binding.change.setOnCheckedChangeListener { _, _ -> sync() }
 
