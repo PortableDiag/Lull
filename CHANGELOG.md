@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.13.4 — 2026-10-27
+- **The local API comes back after an update**, as it already did after a reboot, when it was switched on. Before, it stayed off until Lull was opened, so PhoneAPI lost it at every update.
+
 ## 1.13.3 — 2026-10-27
 - The PhoneAPI key screen says **It may:** above its switches, and when PhoneAPI already holds a key the switches start at what that key may do now, instead of off.
 
